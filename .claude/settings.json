@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -sL \"https://raw.githubusercontent.com/amcwhorter/MEW/main/NH/counties.json\" -o /Users/kirtisoglu/Documents/GitHub/Redistricting_Diffusion_Model/diffusion_model/mew/data/NH_counties.json)",
+      "Bash(pdflatex -interaction=nonstopmode qp_proposal.tex)",
+      "Bash(python -m mew.qp_comparison)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:github.com)",
+      "Bash(julia --project=. src/comparison.jl)",
+      "Bash(julia --project=. src/comparison_pa.jl)",
+      "Read(//Users/kirtisoglu/Documents/GitHub/MEW_original/Texas/**)",
+      "Read(//Users/kirtisoglu/Documents/GitHub/MEW_original/**)",
+      "Bash(julia --project=. bench_tx.jl)"
+    ],
+    "additionalDirectories": [
+      "/Users/kirtisoglu/Documents/GitHub/MEW_original"
+    ]
+  }
+}

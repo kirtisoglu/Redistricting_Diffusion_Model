@@ -1,0 +1,1084 @@
+\documentclass[11pt]{article}
+
+\usepackage{amssymb,amsmath,amsfonts,amsthm}
+\usepackage{lmodern}
+\usepackage{xcolor}
+\usepackage[colorlinks=true]{hyperref}
+\definecolor{cieblue}{RGB}{31, 119, 180}
+\hypersetup{
+    citecolor=cieblue,
+    allcolors=cieblue
+}
+\usepackage{enumerate}
+\newcommand{\warning}[1]{\textcolor{red}{\textbf{Warning:} #1}}
+
+\setlength{\textwidth}{15.5cm}
+\setlength{\textheight}{22cm}
+\setlength{\oddsidemargin}{0.25cm}
+\setlength{\evensidemargin}{0.25cm}
+\setlength{\topmargin}{0cm}
+
+\newcommand{\Z}{\mathbb{Z}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\N}{\mathbb{N}}
+\newcommand{\Pic}{\operatorname{Pic}^0}
+
+\newtheorem{question}{Question}
+\newtheorem{answer}{Discussion}
+
+\title{Research Discussion Notes:\\Picard Groups, Lattices, and Partitions}
+\author{Alaittin K\i rt\i \c{s}o\u{g}lu}
+\date{April 2026}
+
+\begin{document}
+\maketitle
+\tableofcontents
+
+%═══════════════════════════════════════════════════════════════════════════════
+\section{Picard Group via the Incidence Matrix}
+%═══════════════════════════════════════════════════════════════════════════════
+
+\begin{question}
+What happens if we define the Picard group using the incidence matrix rather
+than the Laplacian?
+\end{question}
+
+\begin{answer}
+The incidence matrix $B$ is $n \times m$ (vertices $\times$ edges). The
+Laplacian is $\Delta = BB^T$.
+
+If we define the ``edge Picard group'' as $\Z^E / \operatorname{im}(B^T B)$:
+$B^T B$ is the $m \times m$ edge Laplacian. Its kernel is the cycle space
+(dimension $g = m - n + 1$). Its image is in the cut space (dimension $n-1$).
+
+The nonzero eigenvalues of $B^T B$ and $BB^T$ are identical. But $\Z^E$ has
+dimension $m$, while $\operatorname{im}(B^T B)$ has rank $n-1$. So the quotient
+$\Z^E / \operatorname{im}(B^T B)$ is infinite --- it has a free part of rank
+$m - (n-1) = g + 1$ plus a torsion part isomorphic to $\Pic(G)$.
+
+If we restrict to the cut space, we recover $\Pic(G)$ exactly. Other
+constructions using $B$ directly give either trivial groups ($\Z^V /
+\operatorname{im}(B) \cong \Z$) or infinite groups ($\Z^E /
+\operatorname{im}(B^T)$).
+
+The Laplacian is the only construction that yields a finite nontrivial group
+from a graph.
+\end{answer}
+
+
+%═══════════════════════════════════════════════════════════════════════════════
+\section{The Quotient $\Z^E / (\text{Cut Lattice} + \text{Cycle Lattice})$}
+%═══════════════════════════════════════════════════════════════════════════════
+
+\begin{question}
+What about $\Z^E / (\operatorname{im}(B^T) + \ker_{\Z}(B))$?
+\end{question}
+
+\begin{answer}
+Over $\R$: cut space $\oplus$ cycle space $= \R^E$. Every edge vector
+decomposes uniquely.
+
+Over $\Z$: $\operatorname{im}(B^T) + \ker_{\Z}(B)$ might not equal $\Z^E$.
+However, for graphs with the standard incidence matrix, the fundamental cycles
+and cocycles (with respect to any spanning tree) form a \emph{unimodular} basis
+of $\Z^E$. This is because the graphic matroid is regular, and regular matroids
+are representable by totally unimodular matrices. Therefore:
+\[
+  \operatorname{im}(B^T) + \ker_{\Z}(B) = \Z^E.
+\]
+The quotient is trivial. No new group.
+
+This unimodularity is special to graphic matroids. For non-regular matroids,
+the quotient could be nontrivial --- this is related to the work of
+Baker--Ding--Zhuang on sixth-root-of-unity matroids.
+\end{answer}
+
+
+%═══════════════════════════════════════════════════════════════════════════════
+\section{Chip-Firing as Flow}
+%═══════════════════════════════════════════════════════════════════════════════
+
+\begin{question}
+Chip-firing at vertex $v$ feels like a flow of all chips at $v$ to its
+neighbours equally. Is this correct?
+\end{question}
+
+\begin{answer}
+Yes, that is exactly what it is. Firing vertex $v$:
+\begin{itemize}
+  \item $v$ loses $\deg(v)$ chips (one per edge),
+  \item each neighbour of $v$ gains 1 chip.
+\end{itemize}
+It is a unit flow pushed out equally along every edge incident to $v$. The
+total flow out of $v$ equals $\deg(v)$. Each edge carries exactly 1 unit.
+
+This is why $\Delta_G = BB^T$: the incidence matrix $B$ routes flow along
+edges, and $B^T$ aggregates it at vertices. Chip-firing at $v$ is $B$ applied
+to the edge flow pattern ``1 unit on every edge of $v$,'' which is
+$B^T(v, \cdot)$.
+
+The key limitation: you can only fire all edges of $v$ simultaneously with
+equal flow. You cannot choose to send 2 chips along one edge and 0 along
+another. This rigidity is what makes the quotient $\Z^V / \operatorname{im}(\Delta)$
+finite --- the chip-firing moves are ``too coarse'' to reach every integer
+configuration.
+\end{answer}
+
+
+%═══════════════════════════════════════════════════════════════════════════════
+\section{Flow Methods and the Picard Group}
+%═══════════════════════════════════════════════════════════════════════════════
+
+\begin{question}
+Can we implement flow methods with the Picard group?
+\end{question}
+
+\begin{answer}
+The connection is direct:
+\begin{itemize}
+  \item Chip-firing at $v$ = push 1 unit of flow out of $v$ along every edge.
+  \item Chip-firing at a set $S$ of vertices = push flow out of every vertex
+    in $S$ simultaneously.
+  \item The characteristic script $\chi(V_i)$ from Xu's thesis = fire all
+    vertices in district $V_i$ = push flow out of an entire district across
+    its boundary.
+\end{itemize}
+
+From Xu's Corollary 4: firing $\chi(V_1)$ on the partition divisor $D^S$
+rotates the ordered partition. The flow interpretation: pushing all flow out
+of $V_1$ simultaneously redistributes it to neighbouring districts, which
+cyclically relabels the partition.
+
+The chip-firing / flow duality gives us:
+\begin{itemize}
+  \item \textbf{Single vertex fire} = local flow (one node pushes to
+    neighbours).
+  \item \textbf{District fire $\chi(V_i)$} = global flow (entire district
+    pushes across boundary).
+  \item \textbf{Difference $D^S - D^{S'}$} between two partition divisors =
+    net flow needed to transform one partition into another (Xu's Corollary 3:
+    this equals the boundary edges between merged districts).
+\end{itemize}
+
+However, chip-firing moves chips (divisor values), not population. Population
+is fixed on nodes. The divisor $D^S$ records boundary degrees, not
+populations. To connect to population, one needs a divisor encoding population
+information, such as $D_{\mathrm{pop}} = p - \bar{p} \cdot \mathbf{1}$.
+\end{answer}
+
+
+%═══════════════════════════════════════════════════════════════════════════════
+\section{Changing the Divisor Definition}
+%═══════════════════════════════════════════════════════════════════════════════
+
+\begin{question}
+If we change the divisor definition according to population flows, how could
+the Picard group change?
+\end{question}
+
+\begin{answer}
+The Picard group does not change. $\Pic(G) = \Z^V / \operatorname{im}(\Delta_G)$
+depends only on the graph $G$, not on what the divisor values ``mean.'' The
+group structure is fixed by the Laplacian.
+
+What changes is which divisor you are looking at within the fixed group. $D^S$
+and $D_{\mathrm{pop}}$ are two different elements of $\operatorname{Div}(G)$.
+Chip-firing acts on both via the same group action.
+
+The key insight: if you start at $D_{\mathrm{pop}} = p - \bar{p} \cdot
+\mathbf{1}$ and chip-fire, you trace out the coset $[D_{\mathrm{pop}}]$ in
+$\Pic(G)$. Every element of this coset is a divisor equivalent to
+$D_{\mathrm{pop}}$ --- a different distribution of population deviations
+reachable by chip-firing. The coset has exactly $t(G)$ elements.
+
+\textbf{The question becomes:} within the coset $[D_{\mathrm{pop}}]$, which
+elements correspond to balanced partitions?
+
+A balanced partition has $|p(\xi_i) - \bar{p}_{\mathrm{district}}|$ small for
+each district. In divisor terms: the divisor values, when summed over each
+district, should be close to zero. Different elements of $[D_{\mathrm{pop}}]$
+redistribute the population deviations differently --- some redistributions
+might create balanced partitions, others will not.
+
+So the problem becomes: navigate within a single coset of $\Pic(G)$ to find
+divisors whose district sums are balanced. The MCMC walks within this coset
+via chip-firing, and the partition emerges from the divisor values.
+\end{answer}
+
+
+%═══════════════════════════════════════════════════════════════════════════════
+\section{Why Chip-Firing Finds Spanning Trees}
+%═══════════════════════════════════════════════════════════════════════════════
+
+\begin{question}
+Why and how is firing a chip useful in finding spanning trees?
+\end{question}
+
+\begin{answer}
+Start from the sandpile picture. You have a configuration of chips on
+vertices. Fix a sink $q$. Keep toppling unstable vertices (those with chips
+$\geq$ degree) until everything is stable. The final stable configuration is
+unique --- this is the \textbf{abelian property} of the sandpile (Dhar, 1990).
+
+Each recurrent stable configuration corresponds to exactly one spanning tree.
+There are $t(G)$ of each. The bijection is concrete: when you run Dhar's
+burning algorithm from the sink $q$, the edges that ``carry the fire'' form
+the spanning tree.
+
+You are at stable configuration $c$ (corresponding to tree $T$). You add one
+chip to some vertex $v$. This might make $v$ unstable. You topple $v$ ---
+sending one chip to each neighbour. This might make a neighbour unstable. You
+cascade topplings until stable again. You arrive at a new stable configuration
+$c'$ (corresponding to tree $T'$).
+
+The map $c \to c'$ is deterministic. By choosing different vertices $v$ to add
+chips to, you systematically explore the space of spanning trees.
+
+The exploration has algebraic structure: adding a chip at $v$ and stabilising
+corresponds to adding the group element $[\Delta_G(v, \cdot)]$ in $\Pic(G)$.
+The group is abelian, so the order does not matter. After firing vertices
+$v_1, v_2, \ldots, v_r$, you have added $[\Delta_G(v_1, \cdot)] + \cdots +
+[\Delta_G(v_r, \cdot)]$ in the group. The resulting tree depends only on this
+sum, not on the order.
+\end{answer}
+
+
+%═══════════════════════════════════════════════════════════════════════════════
+\section{Configurations and the Picard Group}
+%═══════════════════════════════════════════════════════════════════════════════
+
+\begin{question}
+Can I say each configuration is an element in the Picard group? Also, you
+said the final stable configuration is unique. What is the name of this
+theorem?
+\end{question}
+
+\begin{answer}
+Almost. Each \emph{recurrent} stable configuration corresponds to a unique
+element of $\Pic(G)$. Not every configuration --- only the recurrent ones.
+There are $t(G)$ recurrent configurations, $t(G)$ elements of $\Pic(G)$, and
+$t(G)$ spanning trees. These three sets are in bijection.
+
+Non-recurrent (transient) configurations do not correspond to group elements.
+They appear only during the transient phase and never return.
+
+The confluence of topplings is called the \textbf{abelian property} of the
+sandpile model, proved by Dhar (1990). The key statement: if multiple vertices
+are unstable, the order in which you topple them does not affect the final
+result. This is why the model is called the \emph{abelian} sandpile model.
+
+The abelian property is also why the recurrent configurations form a group ---
+the group operation (add two configurations, then stabilise) is well-defined
+because stabilisation is unique regardless of toppling order.
+
+Reference: D.~Dhar, ``Self-organized critical state of sandpile automaton
+models,'' \emph{Physical Review Letters}, 1990.
+\end{answer}
+
+
+%═══════════════════════════════════════════════════════════════════════════════
+\section{Natural Connection Between Sandpile Group and Spanning Trees}
+%═══════════════════════════════════════════════════════════════════════════════
+
+\begin{question}
+Is there a natural connection between the sandpile group and the set of
+spanning trees other than cardinality? Is it just finding a bijection map, or
+is there a deeper connection?
+\end{question}
+
+\begin{answer}
+Deeper. The bijection is not an accident of counting --- it comes from the
+structure of the Laplacian.
+
+The Laplacian connects three objects simultaneously:
+\begin{enumerate}
+  \item \textbf{Spanning trees:} $\det(\Delta^{(q)}) = t(G)$ counts them
+    (Kirchhoff).
+  \item \textbf{Sandpile group:} $\Z^{n-1} / \operatorname{im}(\Delta^{(q)})$
+    defines it.
+  \item \textbf{Chip-firing dynamics:} $\Delta_G(v, \cdot)$ is the toppling
+    rule.
+\end{enumerate}
+These are not three separate facts. They are three faces of one object: the
+integer lattice $\operatorname{im}(\Delta^{(q)})$ inside $\Z^{n-1}$.
+
+The reduced Laplacian $\Delta^{(q)}$ is an integer matrix. Its columns
+generate a sublattice $L$ of $\Z^{n-1}$. The fundamental domain of $L$ (a
+parallelotope) has volume $\det(\Delta^{(q)}) = t(G)$. The lattice points of
+$\Z^{n-1}$ inside one fundamental domain are the representatives of
+$\Z^{n-1}/L = \Pic(G)$. There are exactly $t(G)$ of them.
+
+Each lattice point in the fundamental domain \emph{is} a chip configuration.
+The spanning tree bijection shows that this canonical representative encodes a
+spanning tree.
+
+\textbf{The bijection exists because spanning trees are bases of the same
+lattice that defines the Picard group.} The lattice is
+$\operatorname{im}(\Delta^{(q)})$. Its bases are spanning trees. Its cosets
+are group elements. The bijection maps each coset to the basis that defines
+its canonical representative.
+\end{answer}
+
+
+%═══════════════════════════════════════════════════════════════════════════════
+\section{Partitions in the Lattice}
+%═══════════════════════════════════════════════════════════════════════════════
+
+\begin{question}
+Then we may need to understand what partitions are in the lattice.
+\end{question}
+
+\begin{answer}
+A spanning tree $T$ is a basis of the lattice
+$\operatorname{im}(\Delta^{(q)})$. It has $n-1$ edges, giving $n-1$
+independent lattice vectors.
+
+A partition $\xi$ removes $k-1$ edges from $T$, leaving a forest with $n-k$
+edges. That forest is a \textbf{partial basis} --- $n-k$ of the $n-1$ lattice
+vectors.
+
+So a partition is a \textbf{rank-$(n-k)$ sublattice} of
+$\operatorname{im}(\Delta^{(q)})$. Different partitions correspond to
+different sublattices of the same rank. Two spanning trees that give the same
+partition share the same $n-k$ sublattice vectors (the within-district edges)
+and differ only in the remaining $k-1$ vectors (the boundary edges).
+
+In lattice terms:
+\begin{itemize}
+  \item $\Pic(G) = \Z^{n-1} / L$ where $L = \operatorname{im}(\Delta^{(q)})$,
+    a rank-$(n-1)$ lattice.
+  \item A spanning tree = a basis of $L$.
+  \item A partition = a rank-$(n-k)$ sublattice of $L$.
+  \item The fibre = all bases extending this sublattice.
+  \item Within-district moves = change the basis without changing the
+    sublattice.
+  \item Cross-boundary moves = change the sublattice itself.
+\end{itemize}
+
+The partition space is analogous to the Grassmannian of rank-$(n-k)$
+sublattices of $L$.
+\end{answer}
+
+
+%═══════════════════════════════════════════════════════════════════════════════
+\section{The Lattice Explicitly}
+%═══════════════════════════════════════════════════════════════════════════════
+
+\begin{question}
+Can you help me understand this lattice? Define it explicitly.
+\end{question}
+
+\begin{answer}
+Fix a graph $G$ with vertices $\{v_1, \ldots, v_n\}$ and a sink $q = v_n$.
+The reduced Laplacian $\Delta^{(q)}$ is the $(n-1) \times (n-1)$ matrix
+obtained by deleting the last row and column of $\Delta_G$.
+
+The lattice $L$ is:
+\[
+  L = \{\Delta^{(q)} z : z \in \Z^{n-1}\} \subset \Z^{n-1}.
+\]
+The columns of $\Delta^{(q)}$ are the generators. Column $i$ is the chip-fire
+vector at vertex $v_i$ (restricted to non-sink vertices).
+
+\textbf{Example: the triangle $C_3$.}
+
+Vertices $\{1, 2, 3\}$, sink $q = 3$. Each vertex has degree 2.
+\[
+  \Delta^{(3)} = \begin{pmatrix} 2 & -1 \\ -1 & 2 \end{pmatrix}.
+\]
+Column 1 $= (2, -1)$: fire vertex 1. Column 2 $= (-1, 2)$: fire vertex 2.
+
+The lattice $L$ is all integer combinations of $(2, -1)$ and $(-1, 2)$:
+\[
+  L = \{a(2, -1) + b(-1, 2) : a, b \in \Z\}.
+\]
+This is a sublattice of $\Z^2$. Its fundamental domain is a parallelogram
+with area $= \det(\Delta^{(3)}) = 4 - 1 = 3 = t(C_3)$.
+
+The three cosets of $L$ in $\Z^2$ are $(0,0) + L$, $(1,0) + L$, and
+$(0,1) + L$. These are the three elements of $\Pic(C_3) \cong \Z/3$, each
+corresponding to one spanning tree.
+\end{answer}
+
+
+%═══════════════════════════════════════════════════════════════════════════════
+\section{Kirchhoff's Proof and the Laplacian--Tree Connection}
+%═══════════════════════════════════════════════════════════════════════════════
+
+\begin{question}
+How is the reduced Laplacian related to spanning trees? How does Kirchhoff
+prove it? Are the submatrices with $n-k$ rows related to partitions?
+\end{question}
+
+\begin{answer}
+\textbf{Kirchhoff's proof:} The Laplacian factors as $\Delta = BB^T$ where
+$B$ is the oriented incidence matrix ($n \times m$). The reduced version:
+$\Delta^{(q)} = B^{(q)} (B^{(q)})^T$ where $B^{(q)}$ is $(n-1) \times m$.
+
+By Cauchy--Binet:
+\[
+  \det(\Delta^{(q)}) = \sum_{S \subset E,\, |S|=n-1} \det(B^{(q)}_S)^2
+\]
+where $B^{(q)}_S$ is the $(n-1) \times (n-1)$ submatrix using columns indexed
+by edge set $S$.
+
+The key fact: $\det(B^{(q)}_S) = \pm 1$ if $S$ is a spanning tree, and $0$
+otherwise. This is because: if $S$ contains a cycle, the columns are linearly
+dependent; if $S$ is a spanning tree, the columns are independent, and the
+determinant is $\pm 1$ because $B$ is totally unimodular. Therefore:
+\[
+  \det(\Delta^{(q)}) = \sum_{T \text{ spanning tree}} (\pm 1)^2 = t(G).
+\]
+
+\textbf{Submatrices and partitions:} Yes. The \textbf{Matrix-Forest Theorem}
+(Chebotarev and Shamis, 1997) states: for any subset $S \subset V$ with
+$|S| = r$, the $r \times r$ minor of $\Delta_G$ indexed by $S$ equals the
+number of spanning forests of $G$ where each component tree contains exactly
+one vertex from $V \setminus S$ as its root. So:
+\begin{itemize}
+  \item $(n-1) \times (n-1)$ minor $\to$ spanning trees (1 component,
+    1 root).
+  \item $(n-2) \times (n-2)$ minor $\to$ spanning forests with 2 components.
+  \item $(n-k) \times (n-k)$ minor $\to$ spanning forests with $k$
+    components = $k$-partitions (with designated roots).
+\end{itemize}
+
+This means the lattice structure at rank $n-k$ directly encodes partitions,
+just as the full rank $n-1$ lattice encodes spanning trees. The determinant
+of the $(n-k) \times (n-k)$ submatrix counts the partitions (with roots),
+just as $\det(\Delta^{(q)})$ counts spanning trees.
+
+\textbf{Key question:} The Picard group lives at rank $n-1$. Is there a
+``partition Picard group'' at rank $n-k$?
+\end{answer}
+
+
+%═══════════════════════════════════════════════════════════════════════════════
+\section{The Coset Formulation}
+%═══════════════════════════════════════════════════════════════════════════════
+
+\begin{answer}[Summary of the coset formulation]
+Combining the insights from the previous sections, we arrive at the following
+framework:
+
+\textbf{State:} a divisor $D \in [D_{\mathrm{pop}}]$, the coset of
+$D_{\mathrm{pop}} = p - \bar{p} \cdot \mathbf{1}$ in $\Pic(G)$.
+
+\textbf{Move:} chip-fire at vertex $v$. $D \to D - \Delta_G(v, \cdot)$. Stays
+in the same coset.
+
+\textbf{Partition extraction:} from $D$, define districts by grouping vertices
+according to the population deviation pattern encoded in $D$.
+
+\textbf{Reversibility:} chip-firing with symmetric proposal (fire $v$ or
+anti-fire $v$ with equal probability) is reversible on the coset. Uniform
+stationary distribution on the coset, for free.
+
+\textbf{Irreducibility:} the walk visits every element of the coset
+(chip-firing generates $\Pic(G)$, coset is a single orbit). If the partition
+extraction rule is surjective, every partition is reachable.
+
+\textbf{Population balance is built in.} $D_{\mathrm{pop}}$ encodes
+population. Every element of $[D_{\mathrm{pop}}]$ is a redistribution of the
+same total population deviation. The partition extraction looks for clustered
+deviations --- districts where the sum is near zero.
+
+\textbf{Open problems:}
+\begin{enumerate}
+  \item Define a partition extraction rule that is well-defined and surjective.
+  \item Prove that the induced chain on partitions is irreducible.
+  \item Show polynomial mixing time.
+\end{enumerate}
+\end{answer}
+
+
+%═══════════════════════════════════════════════════════════════════════════════
+\section{Submatrices of the Laplacian and Partitions}
+%═══════════════════════════════════════════════════════════════════════════════
+
+\begin{question}
+Does it matter which $(n-k) \times (n-k)$ submatrix we take to generate a
+partition? How is the reduced Laplacian related to spanning trees, and are
+smaller submatrices related to partitions?
+\end{question}
+
+\begin{answer}
+Yes. Different $(n-k) \times (n-k)$ submatrices correspond to different
+choices of which $k$ vertices to delete --- and the deleted vertices become the
+roots of the $k$ components.
+
+The \textbf{Matrix-Forest Theorem} (Chebotarev and Shamis, 1997) states: for
+any subset $S \subset V$ with $|S| = k$, the minor of $\Delta_G$ obtained by
+deleting the rows and columns indexed by $S$ has determinant equal to the
+number of spanning forests of $G$ with $k$ components, where each component is
+rooted at one of the vertices in $S$. So:
+\begin{itemize}
+  \item $(n-1) \times (n-1)$ minor $\to$ spanning trees (1 root).
+  \item $(n-2) \times (n-2)$ minor $\to$ 2-component rooted forests.
+  \item $(n-k) \times (n-k)$ minor $\to$ $k$-component rooted forests =
+    rooted $k$-partitions.
+\end{itemize}
+
+Within one minor, forests are grouped by partition. Each partition $\xi$
+appears $\prod_i t(G[\xi_i])$ times (different within-district trees, same
+components). Two rooted forests from the same minor give the same partition iff
+they have the same connected component vertex sets.
+
+The choice of which $k$ vertices to delete determines which vertices are
+roots. Different root choices give different counts and different forest sets.
+This is an asymmetry with the tree case, where deleting any single vertex gives
+the same count $t(G)$.
+\end{answer}
+
+
+%═══════════════════════════════════════════════════════════════════════════════
+\section{The Partition Picard Group $\mathrm{Pic}_k(G)$}
+%═══════════════════════════════════════════════════════════════════════════════
+
+\begin{question}
+What would happen if we consider $\Z^{n-k} / \text{rank-$(n-k)$ sublattice}$?
+\end{question}
+
+\begin{answer}
+This defines the \textbf{partition Picard group} --- the analogue of $\Pic(G)$
+at rank $n-k$ instead of rank $n-1$.
+
+Fix roots $\{q_1, \ldots, q_k\}$. Delete those $k$ rows and columns from
+$\Delta_G$ to get $\Delta^{(\{q_1,\ldots,q_k\})}$, an $(n-k) \times (n-k)$
+matrix. Define:
+\[
+  \mathrm{Pic}_k(G) = \Z^{n-k} /
+    \operatorname{im}(\Delta^{(\{q_1,\ldots,q_k\})}).
+\]
+Size $= \det(\Delta^{(\{q_1,\ldots,q_k\})})$ = number of rooted spanning
+forests with $k$ components rooted at $q_1, \ldots, q_k$.
+
+Each element of $\mathrm{Pic}_k(G)$ corresponds to one rooted spanning forest.
+Chip-firing makes sense: the columns of $\Delta^{(\{q_1,\ldots,q_k\})}$ are
+chip-fire vectors at non-root vertices, where chips arriving at any root vertex
+disappear (they are deleted from the lattice). This is the
+\textbf{multi-sink sandpile}: each district has a designated sink, and chips
+drain at roots.
+\end{answer}
+
+
+%═══════════════════════════════════════════════════════════════════════════════
+\section{Multi-Sink Bernardi Bijection}
+%═══════════════════════════════════════════════════════════════════════════════
+
+\begin{question}
+Could we define a bijection similar to Bernardi's bijection for
+$\mathrm{Pic}_k(G)$?
+\end{question}
+
+\begin{answer}
+The ingredients exist but the construction appears to be new.
+
+For Bernardi's bijection at rank $n-1$: fix root $q$, fix ribbon structure.
+Tour the graph, record break points, get a divisor. The divisor class bijects
+with a spanning tree.
+
+At rank $n-k$ with $k$ roots $\{q_1, \ldots, q_k\}$: start $k$ simultaneous
+tours, one from each root $q_i$, each exploring its own district. Each tour
+follows the ribbon structure within its territory. When tours meet at boundary
+edges, the break points record the boundary structure. The tours' territories
+\emph{are} the partition.
+
+Dhar's burning also generalises: burn from $k$ sinks simultaneously. Vertices
+catch fire from whichever sink reaches them first. The fire fronts meet at
+district boundaries. The burning process defines both the forest (which edges
+carry fire) and the partition (which sink claimed each vertex). This is a
+\textbf{Voronoi diagram} on the graph with respect to the $k$ root vertices.
+
+The bijection would be: recurrent configurations of the $k$-sink sandpile
+$\leftrightarrow$ rooted spanning forests $\leftrightarrow$ elements of
+$\mathrm{Pic}_k(G)$.
+
+As far as we are aware, a published multi-sink Bernardi bijection does not
+exist. This could be a new contribution.
+\end{answer}
+
+
+%═══════════════════════════════════════════════════════════════════════════════
+\section{Relation Between $\Pic(G)$ and $\mathrm{Pic}_k(G)$}
+%═══════════════════════════════════════════════════════════════════════════════
+
+\begin{question}
+What is the relation between the two Picard groups?
+\end{question}
+
+\begin{answer}
+There is a natural surjection $\pi : \Pic(G) \to \mathrm{Pic}_k(G)$.
+
+Given a divisor $D \in \Z^{n-1}$ (chips on all vertices except $q$), project
+it to $\Z^{n-k}$ by forgetting the coordinates at $q_2, \ldots, q_k$. This
+projection respects chip-firing: if $D \sim D'$ in $\Pic(G)$, then
+$\pi(D) \sim \pi(D')$ in $\mathrm{Pic}_k(G)$. Therefore:
+\[
+  \mathrm{Pic}_k(G) \cong \Pic(G) / \ker(\pi).
+\]
+
+The kernel $\ker(\pi)$ consists of divisor classes in $\Pic(G)$ that become
+trivial in $\mathrm{Pic}_k(G)$ --- classes that can be resolved by chip-firing
+when $k-1$ extra sinks are available to absorb chips.
+
+Combinatorially: $\ker(\pi)$ contains the within-district spanning tree
+changes. Two spanning trees in the same $\ker(\pi)$-coset map to the same
+rooted $k$-forest under projection.
+
+The sizes satisfy:
+\[
+  |\Pic(G)| = |\ker(\pi)| \cdot |\mathrm{Pic}_k(G)|,
+\]
+i.e., $t(G) = |\ker(\pi)| \cdot (\text{number of rooted $k$-forests})$.
+\end{answer}
+
+
+%═══════════════════════════════════════════════════════════════════════════════
+\section{Properties of $\mathrm{Pic}_k(G)$}
+%═══════════════════════════════════════════════════════════════════════════════
+
+\begin{question}
+Does every such quotient make a group? How do we know it is abelian?
+\end{question}
+
+\begin{answer}
+Every quotient $\Z^{n-k} / \operatorname{im}(\Delta^{(\{q_1,\ldots,q_k\})})$
+is automatically a finitely generated abelian group. It is abelian because it
+is a quotient of $\Z^{n-k}$, which is abelian --- a quotient of an abelian
+group is always abelian.
+
+The group is finite (hence useful) when $\Delta^{(\{q_1,\ldots,q_k\})}$ has
+full rank $n-k$. For a connected graph with $n > k$, this is guaranteed.
+
+By the Fundamental Theorem of Finitely Generated Abelian Groups, the Smith
+normal form of $\Delta^{(\{q_1,\ldots,q_k\})}$ gives the decomposition:
+\[
+  \mathrm{Pic}_k(G) \cong \Z/d_1 \times \Z/d_2 \times \cdots \times
+    \Z/d_{n-k},
+\]
+where $d_1 \mid d_2 \mid \cdots \mid d_{n-k}$ are the invariant factors.
+\end{answer}
+
+
+%═══════════════════════════════════════════════════════════════════════════════
+\section{Cyclic Factors and Spanning Trees}
+%═══════════════════════════════════════════════════════════════════════════════
+
+\begin{question}
+What does a cyclic group in the decomposition correspond to in the set of
+spanning trees?
+\end{question}
+
+\begin{answer}
+Each cyclic factor $\Z/d_i$ corresponds to an independent ``direction'' through
+spanning tree space via chip-firing.
+
+The group $\Z/d_1 \times \Z/d_2$ is like a $d_1 \times d_2$ grid of
+positions. Each position is a spanning tree. Moving one step in the first
+direction (adding 1 to the first coordinate) changes the tree by a specific
+chip-fire combination. Moving $d_1$ steps returns to the same tree. Moving in
+the second direction is an independent chip-fire that cycles through $d_2$
+trees before returning.
+
+For the triangle $C_3$: $\Pic(C_3) \cong \Z/3$. One cyclic factor, order 3.
+Three spanning trees arranged in a cycle. Chip-firing at vertex 1 moves one
+step: $T_1 \to T_2 \to T_3 \to T_1$.
+
+For $\mathrm{Pic}_k(G)$: the same interpretation, but in rooted forest space.
+Small factors = short loops through few forests. Large factors = long
+explorations through many forests.
+
+The \textbf{mixing time} of a random walk on
+$\Z/d_1 \times \cdots \times \Z/d_r$ is dominated by the largest factor:
+$t_{\mathrm{mix}} = O(d_{\max}^2 \log r)$. So the largest invariant factor of
+$\mathrm{Pic}_k(G)$ controls how fast the chain explores all partitions.
+\end{answer}
+
+
+%═══════════════════════════════════════════════════════════════════════════════
+\section{Generators and Navigation}
+%═══════════════════════════════════════════════════════════════════════════════
+
+\begin{question}
+Then finding a tree corresponding to each cyclic group would be enough to
+generate the full group? Is it guaranteed that $n-1$ generators visit all
+spanning trees?
+\end{question}
+
+\begin{answer}
+Yes. $\Pic(G)$ has rank $n-1$ (exactly $n-1$ invariant factors). So $n-1$
+generators suffice to reach every spanning tree from any starting tree. Every
+element of $\Pic(G)$ is a unique integer combination of these $n-1$
+generators. For $\mathrm{Pic}_k(G)$: $n-k$ generators suffice to reach every
+rooted $k$-forest.
+
+A generator of $\Z/d_i$ is not a single chip-fire at one vertex. It is a
+specific \textbf{integer linear combination} of chip-fires at multiple
+vertices --- the Smith normal form mixes the original chip-fire vectors to
+align with the cyclic factors. The Smith normal form algorithm computes these
+generators: when $U \Delta^{(q)} V = \operatorname{diag}(d_1, \ldots, d_{n-1})$,
+the columns of $V^{-1}$ are the aligned generators.
+
+\textbf{This gives an algorithm:}
+\begin{enumerate}
+  \item Compute $\Delta^{(\{q_1,\ldots,q_k\})}$.
+  \item Smith normal form $\to$ invariant factors $d_1, \ldots, d_{n-k}$ and
+    transformation matrices.
+  \item Extract generators $g_1, \ldots, g_{n-k}$.
+  \item Starting from any rooted forest, reach any other by: compute the target
+    coordinates, apply the corresponding combination of generators.
+\end{enumerate}
+
+No MCMC needed for exploration --- you can jump directly to any forest by
+applying the right group element. MCMC is only needed for sampling from a
+non-uniform distribution (e.g., favouring population balance).
+
+\textbf{The remarkable fact:} the number of generators ($n-k$) is polynomial
+in $n$, but the number of objects reached (rooted $k$-forests) is exponential.
+The group structure compresses exponential exploration into
+polynomial-dimensional navigation.
+\end{answer}
+
+
+%═══════════════════════════════════════════════════════════════════════════════
+\section{Risks and Open Questions}
+%═══════════════════════════════════════════════════════════════════════════════
+
+The $\mathrm{Pic}_k(G)$ framework is promising but carries several risks:
+
+\begin{enumerate}
+  \item \textbf{Root waste:} $\mathrm{Pic}_k(G)$ indexes rooted forests, not
+    unrooted partitions. Two rooted forests with the same districts but
+    different roots are distinct elements. A chip-fire could change roots
+    without changing the partition.
+
+  \item \textbf{Multi-sink Bernardi bijection:} The explicit bijection between
+    $\mathrm{Pic}_k(G)$ and rooted $k$-forests via a multi-source touring
+    procedure has not been published. It likely works for planar graphs (where
+    the ribbon structure controls the tours) but needs proof.
+
+  \item \textbf{Root dependence:} $\mathrm{Pic}_k(G)$ depends on the choice of
+    $k$ root vertices. Different choices give different groups (different sizes,
+    different invariant factors). There is no canonical root choice for
+    redistricting.
+
+  \item \textbf{Kernel characterisation:} The claim that $\ker(\pi)$
+    corresponds exactly to within-district moves needs careful verification.
+    Some cross-boundary chip-fires might cancel at the extra sinks.
+\end{enumerate}
+
+These are concrete, testable questions that can be resolved by computation on
+small examples (triangle, $6 \times 6$ grid) before attempting general proofs.
+
+
+%═══════════════════════════════════════════════════════════════════════════════
+\section{The Structure of $k$-Partitions Inside $k$-Forests}
+%═══════════════════════════════════════════════════════════════════════════════
+
+\begin{question}
+Can we identify the structure of $k$-partitions inside the space of
+$k$-forests, and embed both inside $\Pic(G)$?
+\end{question}
+
+\begin{answer}
+The group $\mathrm{Pic}_k(G)$ acts on rooted $k$-forests. The rooted
+$k$-forests partition into equivalence classes, where each class consists of
+all forests giving the same (unrooted) $k$-partition.
+
+\paragraph{The fibre of a partition.}
+For a fixed connected $k$-partition $\xi = (\xi_1, \ldots, \xi_k)$, the
+number of rooted $k$-forests producing $\xi$ is:
+\[
+  |\text{fibre}(\xi)| = \prod_{i=1}^{k} |V(\xi_i)| \cdot t(G[\xi_i]),
+\]
+where $|V(\xi_i)|$ accounts for the choice of root within district $\xi_i$,
+and $t(G[\xi_i])$ accounts for the choice of spanning tree within the district.
+
+\paragraph{The stabiliser.}
+Within $\mathrm{Pic}_k(G)$, the elements that map a forest compatible with
+$\xi$ to another forest compatible with the same $\xi$ form the
+\emph{stabiliser} $\mathrm{Stab}(\xi) \subset \mathrm{Pic}_k(G)$, with
+\[
+  |\mathrm{Stab}(\xi)| = \prod_{i=1}^{k} |V(\xi_i)| \cdot t(G[\xi_i]).
+\]
+The number of distinct partitions reachable from $\xi$ by the group action is:
+\[
+  |\mathrm{Pic}_k(G)| \,/\, |\mathrm{Stab}(\xi)|.
+\]
+If the action of $\mathrm{Pic}_k(G)$ on rooted $k$-forests is transitive,
+this quotient equals the total number of connected $k$-partitions (with the
+given root set).
+
+\warning{The stabiliser is only defined if $\mathrm{Pic}_k(G)$ has a proven
+group action on rooted $k$-forests. Currently this action is conjectured (based
+on the counting match $|\mathrm{Pic}_k(G)| = $ number of rooted $k$-forests)
+but not proven. Without the action, $\mathrm{Stab}(\xi)$ is undefined and the
+formula $|\mathrm{Stab}(\xi)| = \prod |V(\xi_i)| \cdot t(G[\xi_i])$ is a
+heuristic based on fibre counting, not a theorem. Proving this action (e.g.,
+via a multi-sink Bernardi bijection or multi-sink rotor-routing torsor) is the
+central open problem.}
+
+\paragraph{Embedding into $\Pic(G)$.}
+A rooted $k$-forest with roots $\{q_1, \ldots, q_k\}$ (where $q_1 = q$ is
+the original sink of $\Pic(G)$) corresponds to a divisor in $\Pic(G)$ where
+the coordinates at $q_2, \ldots, q_k$ are zero. Define the embedding
+$\iota : \mathrm{Pic}_k(G) \hookrightarrow \Pic(G)$ by:
+\[
+  \iota(D)_v =
+  \begin{cases}
+    D_v & \text{if } v \notin \{q_2, \ldots, q_k\}, \\
+    0   & \text{if } v \in \{q_2, \ldots, q_k\}.
+  \end{cases}
+\]
+The image of $\iota$ is the subgroup of $\Pic(G)$ where the coordinates at
+$q_2, \ldots, q_k$ vanish. The surjection
+$\pi : \Pic(G) \to \mathrm{Pic}_k(G)$ (forgetting these coordinates) is the
+left inverse: $\pi \circ \iota = \mathrm{id}$.
+
+\warning{The map $\iota$ is NOT a well-defined group homomorphism. Equivalence
+in $\mathrm{Pic}_k(G)$ allows chips to vanish at the $k-1$ extra sinks
+$q_2, \ldots, q_k$. In $\Pic(G)$, those vertices are present and chips do not
+vanish. So $D \sim D'$ in $\mathrm{Pic}_k(G)$ does NOT imply
+$\iota(D) \sim \iota(D')$ in $\Pic(G)$. The map $\iota$ acts on
+representatives, not on equivalence classes. The surjection
+$\pi : \Pic(G) \to \mathrm{Pic}_k(G)$ IS well-defined (projecting respects
+equivalence because $\operatorname{im}(\Delta^{(q_1)})$ projects onto a
+superset of $\operatorname{im}(\Delta^{(\{q_1,\ldots,q_k\})})$), but the
+reverse embedding does not exist as a group homomorphism.}
+
+\paragraph{The nested structure.}
+This gives a clean hierarchy:
+\[
+  \{k\text{-partitions}\}
+    \;\subset\; \{k\text{-forests}\}
+    \;\subset\; \mathrm{Pic}_k(G)
+    \;\hookrightarrow\; \Pic(G)
+    \;\longleftrightarrow\; \{\text{spanning trees}\}.
+\]
+
+\warning{This diagram mixes rigorous and conjectured relationships. The
+$\longleftrightarrow$ (Baker--Wang torsor) is proven. The $\hookrightarrow$ is
+NOT a valid group homomorphism (see warning above). The second $\subset$
+($k$-forests $\subset \mathrm{Pic}_k(G)$) assumes a bijection between
+$\mathrm{Pic}_k(G)$ and rooted $k$-forests, which is a counting match
+($|\mathrm{Pic}_k(G)| = $ number of rooted $k$-forests via Matrix-Forest
+Theorem) but NOT a proven group action or torsor. The first $\subset$
+($k$-partitions $\subset k$-forests) is a set-level quotient, not an algebraic
+inclusion.}
+
+At each level:
+\begin{itemize}
+  \item $\Pic(G)$ has $t(G)$ elements, indexing spanning trees.
+  \item $\mathrm{Pic}_k(G)$ has $\det(\Delta^{(\{q_1,\ldots,q_k\})})$
+    elements, indexing rooted $k$-forests.
+  \item $k$-forests modulo within-district equivalence give $k$-partitions.
+\end{itemize}
+Each inclusion has computable index. The group structure of $\Pic(G)$ governs
+the entire hierarchy, and the partition structure is identified by the
+stabiliser at each level.
+
+\paragraph{Remark.}
+Note that $\mathrm{Stab}(\xi)$ depends on $\xi$, so different partitions have
+different stabilisers. However, since $\mathrm{Pic}_k(G)$ is abelian, every
+subgroup is normal, and the quotient $\mathrm{Pic}_k(G) / \mathrm{Stab}(\xi)$
+is a well-defined group for each $\xi$. The key open question is whether this
+quotient is ``the same'' (isomorphic) for all $\xi$, which would give a
+universal ``partition Picard group'' independent of the specific partition.
+\end{answer}
+
+
+%═══════════════════════════════════════════════════════════════════════════════
+\section{Literature Review: Key Papers}
+%═══════════════════════════════════════════════════════════════════════════════
+
+\subsection{Torsor Structures on Spanning Trees}
+
+\textbf{Baker and Wang}~\cite{baker2018bernardi} prove that for planar graphs,
+the Bernardi process defines a \emph{simply transitive} action of $\Pic(G)$ on
+spanning trees (Theorem~4.1). This action is canonical for planar graphs
+(independent of root vertex, Theorem~5.1) and coincides with the rotor-routing
+torsor (Theorem~7.1). This is the foundational result for the algebraic
+approach to spanning trees.
+
+\textbf{Backman, Baker, and Yuen}~\cite{backman2019geometric} extend this to
+\emph{regular matroids}: the Jacobian of a regular matroid admits a canonical
+simply transitive action on circuit-cocircuit reversal classes. The bijections
+$\beta$ are constructed via acyclic signatures.
+
+\textbf{Ding, McDonough, T\'othm\'er\'esz, and Yuen}~\cite{ding2025consistent}
+prove that the sandpile torsor on regular matroids is \emph{consistent} under
+deletion and contraction. This is the key property for our setting: contracting
+within-district edges gives the quotient graph $Q_\xi$, and consistency means
+the torsor on $G$ projects to a torsor on $Q_\xi$.
+
+\subsection{Bijections for Spanning Subgraphs}
+
+\textbf{Ding}~\cite{ding2023geometric} extends the BBY bijection from spanning
+trees to \emph{all spanning subgraphs}. Theorem~1.2 gives specialisations:
+\begin{enumerate}
+  \item Spanning subgraphs $\leftrightarrow$ all orientations (cardinality
+    $T_G(2,2)$).
+  \item \textbf{Spanning forests} $\leftrightarrow$ $\sigma$-compatible
+    orientations (cardinality $T_G(2,1)$).
+  \item Connected spanning subgraphs $\leftrightarrow$ $\sigma^*$-compatible
+    orientations (cardinality $T_G(1,2)$).
+  \item Spanning trees $\leftrightarrow$ $(\sigma, \sigma^*)$-compatible
+    orientations (cardinality $T_G(1,1)$).
+\end{enumerate}
+Row~2 is critical for us: spanning forests (= partitions into connected
+subgraphs) biject with $\sigma$-compatible orientations. However, the group
+action (torsor) is only established at the spanning tree level (row~4), not at
+the forest level.
+
+\subsection{Partitions and Divisors}
+
+\textbf{Xu}~\cite{xu2011partitions} establishes a direct map from ordered
+$k$-partitions to divisors. For an ordered partition $S = (V_1, \ldots, V_k)$,
+the \emph{minimal effective divisor} $D^S$ has value at each vertex $v \in V_i$
+equal to the number of neighbours of $v$ in districts $V_j$ with $j > i$
+(Proposition~2). Key consequences:
+\begin{itemize}
+  \item Chip-firing $\chi(V_1)$ rotates the ordered partition:
+    $\chi(V_1) \cdot D^S = D^{S^{(1)}}$ (Corollary~4).
+  \item Merging adjacent districts $V_i \cup V_{i+1}$ corresponds to
+    subtracting the boundary divisor: $D^S - D^{S'} = \sum_{v \in V_i}
+    |\{vw \in E : w \in V_{i+1}\}| \cdot v$ (Corollary~3).
+  \item The minimal free resolution of the toppling ideal $R/I$ is
+    (conjecturally) indexed by connected partitions (Conjecture~13, due to
+    Wilmes).
+\end{itemize}
+
+\subsection{The Matrix-Forest Theorem and $W(G) = I + L(G)$}
+
+\textbf{Chebotarev and Shamis}~\cite{chebotarev2006forest} prove the
+Matrix-Forest Theorems for the matrix $W(G) = I + L(G)$:
+\begin{itemize}
+  \item $\det(W(G))$ = total number of rooted spanning forests (Theorem~5).
+  \item The $(i,j)$-cofactor $W^{ij}$ = number of rooted forests where $i$ and
+    $j$ belong to the same tree rooted at $i$ (Theorem~6).
+  \item $W^{-1}_{ij}$ = relative forest-accessibility: the fraction of forests
+    where $i$ and $j$ are in the same tree rooted at $j$ (Theorem~7).
+\end{itemize}
+The inverse $W^{-1}$ is a \emph{partition proximity matrix}: vertices with
+large $W^{-1}_{ij}$ naturally belong in the same district across random
+forests. However, $W(G)$ counts forests of \emph{all} component numbers
+simultaneously and does not directly encode $k$-partitions.
+
+The referenced papers provide additional structure:
+\begin{itemize}
+  \item \textbf{Bapat and Constantine}~\cite{bapat1992enumerating} count
+    spanning forests with colour restrictions --- potentially useful for
+    encoding within-district vs.\ cross-boundary edge constraints algebraically.
+  \item \textbf{Kelmans and Chelnokov}~\cite{kelmans1974polynomial} show that
+    the coefficients of the Laplacian characteristic polynomial equal the
+    numbers of spanning forests with fixed numbers of components. This connects
+    the \emph{spectrum} of $\Delta_G$ to forest/partition counts at every level
+    $k$ simultaneously.
+  \item \textbf{Merris}~\cite{merris1989edge} proves an edge version of the
+    Matrix-Tree Theorem using the edge Laplacian $B^T B$, potentially enabling
+    an edge-based analogue of $\mathrm{Pic}_k(G)$.
+  \item \textbf{Moon}~\cite{moon1995adjoint} studies the adjoint of $W(G)$,
+    which by Theorem~7 of~\cite{chebotarev2006forest} gives the matrix of
+    relative forest-accessibilities.
+\end{itemize}
+
+\subsection{Redistricting MCMC}
+
+\textbf{DeFord, Herschlag, and Mattingly}~\cite{deford2025cycle} introduce
+the Cycle Walk for sampling spanning forests for redistricting --- the closest
+existing work to our approach.
+
+\textbf{Autry, Carter, Herschlag, Hunter, and
+Mattingly}~\cite{autry2020multiscale} develop multi-scale merge-split MCMC,
+addressing the same scaling problem as our boundary cycle step but via
+hierarchical proposals rather than algebraic structure.
+
+\textbf{McWhorter and DeFord}~\cite{mew} introduce the Marked Edge Walk, whose
+within-fibre waste motivates our entire programme.
+
+
+\begin{thebibliography}{99}
+
+\bibitem{autry2020multiscale}
+E.~A. Autry, D.~Carter, G.~Herschlag, Z.~Hunter, and J.~C. Mattingly.
+\newblock Multi-scale merge-split {M}arkov chain {M}onte {C}arlo for
+  redistricting.
+\newblock \emph{arXiv preprint arXiv:2008.08054}, 2020.
+
+\bibitem{backman2019geometric}
+S.~Backman, M.~Baker, and C.~H. Yuen.
+\newblock Geometric bijections for regular matroids, zonotopes, and {E}hrhart
+  theory.
+\newblock \emph{Forum of Mathematics, Sigma}, 7:e45, 2019.
+
+\bibitem{baker2018bernardi}
+M.~Baker and Y.~Wang.
+\newblock The {B}ernardi process and torsor structures on spanning trees.
+\newblock \emph{International Mathematics Research Notices}, 2018(16):5120--5147,
+  2018.
+
+\bibitem{bapat1992enumerating}
+R.~B. Bapat and G.~Constantine.
+\newblock An enumerating function for spanning forests with color restrictions.
+\newblock \emph{Linear Algebra Appl.}, 173:231--237, 1992.
+
+\bibitem{chebotarev2006forest}
+P.~Chebotarev and E.~Shamis.
+\newblock Matrix-forest theorems.
+\newblock \emph{arXiv preprint arXiv:math/0602575}, 2006.
+
+\bibitem{deford2025cycle}
+D.~R. DeFord, G.~Herschlag, and J.~C. Mattingly.
+\newblock A cycle walk for sampling measures on spanning forests for
+  redistricting.
+\newblock \emph{arXiv preprint arXiv:2509.08629}, 2025.
+
+\bibitem{dhar1990self}
+D.~Dhar.
+\newblock Self-organized critical state of sandpile automaton models.
+\newblock \emph{Physical Review Letters}, 64(14):1613, 1990.
+
+\bibitem{ding2023geometric}
+C.~Ding.
+\newblock Geometric bijections between spanning subgraphs and orientations of a
+  graph.
+\newblock \emph{arXiv preprint arXiv:2109.01930}, 2023.
+
+\bibitem{ding2025consistent}
+C.~Ding, A.~McDonough, L.~T\'othm\'er\'esz, and C.~H. Yuen.
+\newblock A consistent sandpile torsor algorithm for regular matroids.
+\newblock \emph{European Journal of Combinatorics}, 130:104218, 2025.
+
+\bibitem{kelmans1974polynomial}
+A.~K. Kelmans and V.~M. Chelnokov.
+\newblock A certain polynomial of a graph and graphs with an extremal number of
+  trees.
+\newblock \emph{J.\ Comb.\ Theory, Ser.\ B}, 16:197--214, 1974.
+
+\bibitem{merris1989edge}
+R.~Merris.
+\newblock An edge version of the {M}atrix-{T}ree {T}heorem and the {W}iener
+  index.
+\newblock \emph{Lin.\ Multilin.\ Alg.}, 25:291--296, 1989.
+
+\bibitem{mew}
+A.~McWhorter and D.~DeFord.
+\newblock The {M}arked {E}dge {W}alk: A novel {MCMC} algorithm for sampling of
+  graph partitions.
+\newblock \emph{arXiv preprint arXiv:2510.17714}, 2025.
+
+\bibitem{moon1995adjoint}
+J.~W. Moon.
+\newblock On the adjoint of a matrix associated with trees.
+\newblock \emph{Lin.\ Multilin.\ Alg.}, 39:191--194, 1995.
+
+\bibitem{xu2011partitions}
+T.~Xu.
+\newblock \emph{Graph Partitions and Free Resolutions of Toppling Ideals}.
+\newblock Bachelor's thesis, Reed College, 2011.
+
+\end{thebibliography}
+
+
+\end{document}
