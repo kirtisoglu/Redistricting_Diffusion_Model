@@ -267,9 +267,9 @@ Drafted in `diffusion.tex` §3.2-§4. Polish + add Cheeger sweep.
 
 `diffusion.tex` §6.
 
-- **5.1 Energy-descent lemma** (drafted, Lemma 6.1).
-- **5.2 Spectral filter frequency response** (drafted): $\hat x_k = \gamma/(\beta\lambda_k + \gamma) \cdot \hat x_{0,k}$.
-- **5.3 Cheeger inequality bound** on the rounded cut.
+- **5.1 Energy-descent lemma**. Verified on every Iowa merged pair: mean fractional energy drop 89.4% (uniform kernel), 80.1% (perimeter), 79.3% (density). Lemma 6.1 confirmed across pairs and kernels.
+- **5.2 Spectral filter frequency response** $\hat x_k = \gamma/(\beta\lambda_k + \gamma) \cdot \hat x_{0,k}$. Numerically verified: **max abs reconstruction error 1.2×10⁻¹⁴** between the matrix inverse `(αL+βI)⁻¹` and the eigenbasis-filter sum. Panel A is the **headline rendering of Figure 8**.
+- **5.3 Cheeger inequality bound** on the rounded cut. Verified across all six Iowa pairs (Panel D in Figure 8)
 - **5.4 Implications for kernel design.** "Are the first eigenvectors noise?" — diagnostic for kernel validity.
 
 ### §6. Integer QP local refinement (~3 pages) **[NEW]**
