@@ -1,6 +1,6 @@
 # A Diffusion Model for Political Redistricting — Paper Plan
 
-> **Status (2026-05-01 evening).** Concept locked. Q1-ready scope. Six-week sprint to arXiv on **2026-06-12**. Sprint 1 ✓; Sprint 2 ≈70% done (SpecReCom + IQP unification + repair landed; NC pending). Pre-registered first-submission target odds at JCGS: **60-70%.**
+> **Status (2026-05-19).** Concept locked. Q1-ready scope. Six-week sprint to arXiv on **2026-06-12**. Sprint 1 ✓; Sprint 2 ≈70% done (SpecReCom + IQP unification + repair landed; NC pending). **§5 spectral analysis empirically validated on Iowa (Fig 8 + companions rendered, 2026-05-19).** Pre-registered first-submission target odds at JCGS: **60-75%**.
 
 ## Concept (locked, reframed 2026-05-01 late)
 
