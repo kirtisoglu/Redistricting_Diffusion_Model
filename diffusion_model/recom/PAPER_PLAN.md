@@ -637,6 +637,7 @@ The legacy `mip_local_step` and `make_mip_hybrid_step` have been **removed**. C 
 | Kernel infrastructure (perimeter, density) | ✓ — Sprint 3 will run them    |
 | NC dataset loader (custom JSON)            | ✓ — works                     |
 | NC 5-chain run                             | pending                         |
+| §5 spectral analysis + Fig 8 (validation)  | ✓ — `spectral_analysis.py` + experiment script + Fig 8 (2026-05-19) |
 
 ## Remaining sprints (May 4 → June 12)
 
