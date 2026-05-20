@@ -348,25 +348,25 @@ Five chains (V, A, B, C, D) on three datasets (5×5, Iowa, 4×4). All locked.
 
 ## Figures and tables checklist (for v1 submission)
 
-| # | Element | Source | Status |
-|---|---|---|---|
+| # | Element | Source                                              | Status |
+|---|---|-----------------------------------------------------|---|
 | Fig 1 | Iowa dual graph w/ congressional districts | `Papers/fig/redistricting.png` placeholder in notes | needs real shapefile render |
-| Fig 2 | 5×5 fiber community structure | `fiber_5x5/fiber_5x5_communities.png` | ✓ have |
-| Fig 3 | 5×5 ε=0 island-trace step-by-step | `iowa_hybrid_test_out/island_trace_5x5.png` | ✓ have |
-| Fig 4 | 5×5 ε=0.2 corridor visualisation | `fiber_5x5/fiber_5x5_eps02_corridors.png` | ✓ have |
-| Fig 5 | 4×4 ε=0.25 corridor visualisation | `fiber_5x5/fiber_4x4_eps025_corridors.png` | ✓ have |
-| Fig 6 | Iowa cuts trace (5 chains) | `iowa_hybrid_test_out/target_matched_iowa.png` | ✓ have |
-| Fig 7 | Iowa cuts histogram (5 chains, post burn-in) | (panel of Fig 6) | ✓ have |
-| Fig 8 | Spectral frequency response curve | new — needs render | drafted equations only |
-| Fig 9 | Pareto frontier: cuts vs wall-clock | new — easy from npz | pending |
-| Fig 10 | Multi-kernel Iowa partitions | new | pending Sprint 3 |
-| Fig 11 | Partisan-skew distributions | new | pending Sprint 4 |
-| Tbl 1 | Three fibers comparison (§3.5.3) | this plan | ✓ have |
-| Tbl 2 | 5×5 compactness + bias | this plan | ✓ have |
-| Tbl 3 | Iowa headline 5-chain | this plan | ✓ have |
-| Tbl 4 | n_iqp sweep | this plan | ✓ have |
-| Tbl 5 | Diversity ablations (Jitter/Tabu) | this plan | ✓ have |
-| Tbl 6 | Hyperparameter locked values | "Algorithm details" section | ✓ have |
+| Fig 2 | 5×5 fiber community structure | `fiber_5x5/fiber_5x5_communities.png`               | ✓ have |
+| Fig 3 | 5×5 ε=0 island-trace step-by-step | `iowa_hybrid_test_out/island_trace_5x5.png`         | ✓ have |
+| Fig 4 | 5×5 ε=0.2 corridor visualisation | `fiber_5x5/fiber_5x5_eps02_corridors.png`           | ✓ have |
+| Fig 5 | 4×4 ε=0.25 corridor visualisation | `fiber_5x5/fiber_4x4_eps025_corridors.png`          | ✓ have |
+| Fig 6 | Iowa cuts trace (5 chains) | `iowa_hybrid_test_out/target_matched_iowa.png`      | ✓ have |
+| Fig 7 | Iowa cuts histogram (5 chains, post burn-in) | (panel of Fig 6)                                    | ✓ have |
+| Fig 8 | Spectral frequency response curve | `plots/spectral_frequency_response.png`             | ✓ have |
+| Fig 9 | Pareto frontier: cuts vs wall-clock | new — easy from npz                                 | pending |
+| Fig 10 | Multi-kernel Iowa partitions | new                                                 | pending Sprint 3 |
+| Fig 11 | Partisan-skew distributions | new                                                 | pending Sprint 4 |
+| Tbl 1 | Three fibers comparison (§3.5.3) | this plan                                           | ✓ have |
+| Tbl 2 | 5×5 compactness + bias | this plan                                           | ✓ have |
+| Tbl 3 | Iowa headline 5-chain | this plan                                           | ✓ have |
+| Tbl 4 | n_iqp sweep | this plan                                           | ✓ have |
+| Tbl 5 | Diversity ablations (Jitter/Tabu) | this plan                                           | ✓ have |
+| Tbl 6 | Hyperparameter locked values | "Algorithm details" section                         | ✓ have |
 
 ## Writing order (recommended)
 
