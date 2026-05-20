@@ -206,6 +206,29 @@ To complement the ε=0 island-neck step-trace from Sprint 1, we run the same dia
 
 Results pending; will update.
 
+### 4. §5 spectral analysis: empirical validation on Iowa (2026-05-19)
+
+Closed-form §5 equations turned into a runnable module (`diffusion_model/recom/spectral_analysis.py`) plus an experiment driver (`scripts/spectral_analysis_experiment.py`). Renders Figure 8 (4-panel) and emits JSON summaries per kernel.
+
+**Headline numbers (Iowa k=4 ε=0.05, α=10, β=1, 6 merged pairs)**:
+
+| Quantity | Uniform | Perimeter | Density |
+|---|---:|---:|---:|
+| Mean fractional energy drop (§5.1) | **89.4%** | 80.1% | 79.3% |
+| Max abs error spectral filter ≡ matrix inverse (§5.2) | 1.2×10⁻¹⁴ | 1.1×10⁻¹⁴ | 1.2×10⁻¹⁴ |
+| Mean fraction of nontrivial $\|\hat x_{0,k}\|^2$ in lowest 10% of modes (§5.4) | **85.5%** | 84.9% | 70.4% |
+| Mean $\lambda_2$ (§5.3) | 0.114 | 0.036 | ≈0 (disconnected) |
+| Mean $\Phi(S_{\text{Fiedler}})$ | 0.070 | 0.067 | 0.077 |
+
+**Three findings**:
+1. **Lemma 6.1 (energy descent) holds across pairs and kernels** with substantial (~80–90%) fractional drops.
+2. **The closed-form filter agrees with the matrix inverse to machine precision** — §5.2 is exact.
+3. **First eigenvectors are not noise.** ≥75% of the indicator's nontrivial Fourier energy lives in the lowest 10% of modes on every Iowa pair under uniform/perimeter kernels — direct answer to §5.4.
+
+**Side finding worth surfacing in §4.1 and §7.3**: the locked density kernel disconnects the weighted subgraph on Iowa urban/rural pairs (λ₂ ≈ 0). Two one-line fixes proposed (per-pair σ, uniform floor); the diagnostic is exactly what §5.4 was designed to catch.
+
+Implementation: `diffusion_model/recom/spectral_analysis.py` (canonical module, pure numpy/scipy, no Gurobi). Companion: `scripts/spectral_analysis_experiment.py`. Outputs: `plots/spectral_frequency_response{,_perimeter,_density}.png` + `plots/spectral_summary{,_perimeter,_density}.json`.
+
 ---
 
 ## Detailed paper outline (v1 arXiv draft — section-by-section content map)
