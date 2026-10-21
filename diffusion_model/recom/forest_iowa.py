@@ -24,8 +24,9 @@ Two modes.
   long    n_steps default 2000000, perimeter and density only, one chain
           per invocation so runs can be parallelised:
               python3 recom/forest_iowa.py long forest   [n] [seed]
-              python3 recom/forest_iowa.py long hybrid   [n] [seed]   (p = 0.1)
-          Writes forest_iowa_long_{forest|hybrid}_seed{SEED}.npz.
+              python3 recom/forest_iowa.py long hybrid   [n] [seed] [pi|tree] [p_local]
+          p_local defaults to 0.1; a different value is added to the file name.
+          Writes forest_iowa_long_{forest|hybrid}[_p{p}]_seed{SEED}_{target}.npz.
 
 KILL CRITERION (pre-registered): on the long runs, ESS/s(f-hybrid) /
 ESS/s(forest) >= 1.5 under both the perimeter and the density target on
@@ -44,7 +45,7 @@ Output files carry the target in their name. The paper's tree-part chain
 is run only under "pi".
 
 Usage:  python3 recom/forest_iowa.py short [n_steps] [seed] [tau] [pi|tree]
-        python3 recom/forest_iowa.py long forest|hybrid [n_steps] [seed] [pi|tree]
+        python3 recom/forest_iowa.py long forest|hybrid [n_steps] [seed] [pi|tree] [p_local]
 """
 
 import sys
@@ -141,8 +142,8 @@ def run_long():
     N = int(sys.argv[3]) if len(sys.argv) > 3 else 2_000_000
     SEED = int(sys.argv[4]) if len(sys.argv) > 4 else 42
     TARGET = sys.argv[5] if len(sys.argv) > 5 else "pi"
+    P_LOCAL = 0.0 if WHICH == "forest" else (float(sys.argv[6]) if len(sys.argv) > 6 else 0.1)
     TAU = TAU_DEFAULT
-    P_LOCAL = 0.0 if WHICH == "forest" else 0.1
     p = setup_problem("iowa", _REPO)
     graph, eps, ideal, init = p["graph"], p["eps"], p["ideal"], p["init"]
     cfgs = targets(graph, init, (("perimeter", kernel_perimeter),
@@ -155,12 +156,13 @@ def run_long():
                                 log_every=N // 20, label=f"{kname} {WHICH}")
         s = chain_summary(res, BURN)
         qm = " ".join(f"{v:.2f}" for v in s["quarters"])
-        print(f"{kname:>10} lam={lam:.3f} {WHICH} {N} steps seed {SEED} target {TARGET}: "
+        print(f"{kname:>10} lam={lam:.3f} {WHICH} p_local={P_LOCAL:g} {N} steps seed {SEED} target {TARGET}: "
               f"acc forest {s['acc_global']:.4f} acc loc {s['acc_local']:.3f} "
               f"quarter means {qm}  ESS {s['ess']:.0f}  wall {s['wall']:.0f}s  "
               f"ESS/s {s['ess_s']:.4f}", flush=True)
         store_res(store, kname, res, lam)
-    out = OUT_DIR / f"forest_iowa_long_{WHICH}_seed{SEED}_{TARGET}.npz"
+    ptag = "" if WHICH == "forest" or P_LOCAL == 0.1 else f"_p{P_LOCAL:g}"
+    out = OUT_DIR / f"forest_iowa_long_{WHICH}{ptag}_seed{SEED}_{TARGET}.npz"
     np.savez(out, **store)
     print(f"Saved {out.name}")
 
