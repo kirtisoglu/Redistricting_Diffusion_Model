@@ -313,7 +313,76 @@ The same gate under pi on the earlier commit a3dbc8f (no retry) also passed; its
 
 ### Step 2: Iowa short, pi and tree
 
-(paste)
+Run 2026-10-21 on commit e4743a6.
+
+Under pi (`forest_iowa_short_tau0.1_seed42_pi.log`):
+
+```
+Iowa, k=4, eps=0.05, 200000 steps per chain, tau = 0.1, seed 42, target = pi
+
+    kernel     lam          chain  acc glob  acc loc  mv/loc  fast  wcut h1  wcut h2     ESS   wall s   ESS/s
+   uniform   0.100         forest    0.1626      nan     nan   nan    89.23    87.84      36    224.9   0.161   ratio vs forest 1.00
+   uniform   0.100 f-hybrid p=0.1    0.1575    0.249   0.141  0.53    90.07    89.43      56    249.8   0.223   ratio vs forest 1.39
+   uniform   0.100 f-hybrid p=0.3    0.1647    0.254   0.140  0.57    89.75    89.27     180    252.3   0.714   ratio vs forest 4.44
+   uniform   0.100      tree-part    0.0119      nan     nan   nan    83.17    87.24      14     35.1   0.395   ratio vs forest 2.46
+
+ perimeter   0.343         forest    0.1629      nan     nan   nan    28.09    28.23      43    231.5   0.185   ratio vs forest 1.00
+ perimeter   0.343 f-hybrid p=0.1    0.1634    0.530   0.130  0.79    28.70    28.23      79    233.9   0.339   ratio vs forest 1.83
+ perimeter   0.343 f-hybrid p=0.3    0.1577    0.526   0.137  0.78    28.00    28.35     116    256.8   0.450   ratio vs forest 2.44
+ perimeter   0.343      tree-part    0.0056      nan     nan   nan    25.53    28.16       6     38.5   0.153   ratio vs forest 0.83
+
+   density   0.718         forest    0.1738      nan     nan   nan    18.27    17.88      56    228.7   0.243   ratio vs forest 1.00
+   density   0.718 f-hybrid p=0.1    0.1734    0.672   0.134  0.98    18.14    18.09      93    219.1   0.424   ratio vs forest 1.74
+   density   0.718 f-hybrid p=0.3    0.1741    0.669   0.133  0.98    18.22    18.08     174    204.5   0.852   ratio vs forest 3.51
+   density   0.718      tree-part    0.0068      nan     nan   nan    13.26    14.83       6     30.7   0.204   ratio vs forest 0.84
+
+Saved forest_iowa_short_tau0.1_seed42_pi.npz
+```
+
+Under the tree-weighted target (`forest_iowa_short_tau0.1_seed42_tree.log`):
+
+```
+Iowa, k=4, eps=0.05, 200000 steps per chain, tau = 0.1, seed 42, target = tree
+
+    kernel     lam          chain  acc glob  acc loc  mv/loc  fast  wcut h1  wcut h2     ESS   wall s   ESS/s
+   uniform   0.100         forest    0.7407      nan     nan   nan    41.05    40.93   10035    165.7  60.563   ratio vs forest 1.00
+   uniform   0.100 f-hybrid p=0.1    0.7420    0.419   0.157  0.56    40.98    40.94   10677    189.4  56.365   ratio vs forest 0.93
+   uniform   0.100 f-hybrid p=0.3    0.7442    0.422   0.152  0.56    41.05    40.90    8010    234.2  34.203   ratio vs forest 0.56
+
+ perimeter   0.343         forest    0.7332      nan     nan   nan    13.04    13.04   10257    164.6  62.307   ratio vs forest 1.00
+ perimeter   0.343 f-hybrid p=0.1    0.7319    0.714   0.100  0.81    13.04    13.03    9459    174.6  54.179   ratio vs forest 0.87
+ perimeter   0.343 f-hybrid p=0.3    0.7345    0.715   0.103  0.81    13.06    13.04    7686    191.3  40.173   ratio vs forest 0.64
+
+   density   0.718         forest    0.6616      nan     nan   nan     7.30     7.31    9295    173.0  53.717   ratio vs forest 1.00
+   density   0.718 f-hybrid p=0.1    0.6619    0.831   0.077  0.99     7.34     7.27    8334    181.3  45.978   ratio vs forest 0.86
+   density   0.718 f-hybrid p=0.3    0.6598    0.832   0.077  0.99     7.28     7.29    5927    170.7  34.730   ratio vs forest 0.65
+
+Saved forest_iowa_short_tau0.1_seed42_tree.npz
+```
+
+No-retry reference under pi, commit a3dbc8f (`forest_iowa_short_tau0.1_seed42.log`):
+
+```
+Iowa, k=4, eps=0.05, 200000 steps per chain, tau = 0.1, seed 42
+
+    kernel     lam          chain  acc glob  acc loc  mv/loc  fast  wcut h1  wcut h2     ESS   wall s   ESS/s
+   uniform   0.100         forest    0.0768      nan     nan   nan    93.01    88.70      23     91.6   0.246   ratio vs forest 1.00
+   uniform   0.100 f-hybrid p=0.1    0.0768    0.226   0.136  0.52    88.44    91.18      40    121.1   0.327   ratio vs forest 1.33
+   uniform   0.100 f-hybrid p=0.3    0.1066    0.262   0.140  0.56    88.73    89.70      69    165.4   0.418   ratio vs forest 1.70
+   uniform   0.100      tree-part    0.0119      nan     nan   nan    83.17    87.24      14     37.5   0.370   ratio vs forest 1.50
+
+ perimeter   0.343         forest    0.0950      nan     nan   nan    29.21    28.12      14     88.5   0.161   ratio vs forest 1.00
+ perimeter   0.343 f-hybrid p=0.1    0.0935    0.530   0.136  0.78    27.48    28.58      22    106.3   0.211   ratio vs forest 1.31
+ perimeter   0.343 f-hybrid p=0.3    0.0933    0.523   0.125  0.79    29.00    28.58      56    133.4   0.422   ratio vs forest 2.62
+ perimeter   0.343      tree-part    0.0056      nan     nan   nan    25.53    28.16       6     35.9   0.164   ratio vs forest 1.02
+
+   density   0.718         forest    0.0931      nan     nan   nan    18.64    17.91      32     86.8   0.366   ratio vs forest 1.00
+   density   0.718 f-hybrid p=0.1    0.1082    0.675   0.128  0.98    18.01    18.40      57     97.1   0.588   ratio vs forest 1.61
+   density   0.718 f-hybrid p=0.3    0.0986    0.685   0.130  0.98    18.34    18.30     116    111.5   1.037   ratio vs forest 2.84
+   density   0.718      tree-part    0.0068      nan     nan   nan    13.26    14.83       6     32.2   0.194   ratio vs forest 0.53
+
+Saved forest_iowa_short_tau0.1_seed42.npz
+```
 
 ### Step 3: Iowa long
 
