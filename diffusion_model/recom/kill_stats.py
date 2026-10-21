@@ -22,18 +22,53 @@ def floor_tv(p, n_eff, n_boot=300):
     return float(v.mean()), float(v.std(ddof=1))
 
 
+def merge_bins(vals, p_marg, min_mass=0.02):
+    """Group consecutive cut values so every bin carries target mass at
+    least min_mass (merging from the tail). A bin whose expected count per
+    block is below one makes the batch covariance singular and the
+    Hotelling statistic meaningless; under a sharp tree-weighted target
+    the top cut value can have mass 3e-4. Returns (bin index per value,
+    mass per bin)."""
+    bins = []
+    cur, mass = [], 0.0
+    for i, m in enumerate(p_marg):
+        cur.append(i)
+        mass += m
+        if mass >= min_mass:
+            bins.append(cur)
+            cur, mass = [], 0.0
+    if cur:
+        if bins:
+            bins[-1].extend(cur)
+        else:
+            bins.append(cur)
+    idx = np.empty(len(vals), dtype=int)
+    for b, members in enumerate(bins):
+        for i in members:
+            idx[i] = b
+    pm = np.array([p_marg[members].sum() for members in bins])
+    return idx, pm
+
+
 def hotelling_marginal(ids_post, cuts_by_id, vals, p_marg, n_blocks=100):
-    """Batch-means Hotelling T^2 on the cut-count marginal."""
+    """Batch-means Hotelling T^2 on the cut-count marginal, after merging
+    bins of negligible target mass (see merge_bins)."""
     c = cuts_by_id[ids_post]
-    iat = max(len(c) / ess_fft((c == v).astype(float)) for v in vals)
-    L = max(int(50 * iat), len(c) // n_blocks)
-    B = len(c) // L
-    if B <= len(vals) + 3:
-        L = len(c) // (len(vals) + 10)
-        B = len(c) // L
-    blocks = c[:B * L].reshape(B, L)
-    P = np.stack([np.array([(b == v).mean() for v in vals]) for b in blocks])
-    Y = (P - p_marg)[:, :-1]
+    bin_of_val, pm = merge_bins(np.asarray(vals), np.asarray(p_marg))
+    val_to_bin = {v: bin_of_val[i] for i, v in enumerate(vals)}
+    cb = np.array([val_to_bin[v] for v in c])
+    nb = len(pm)
+    if nb < 2:
+        return float("nan"), 0, 0, float("nan")
+    iat = max(len(cb) / ess_fft((cb == b).astype(float)) for b in range(nb))
+    L = max(int(50 * iat), len(cb) // n_blocks)
+    B = len(cb) // L
+    if B <= nb + 3:
+        L = len(cb) // (nb + 10)
+        B = len(cb) // L
+    blocks = cb[:B * L].reshape(B, L)
+    P = np.stack([np.array([(b == k).mean() for k in range(nb)]) for b in blocks])
+    Y = (P - pm)[:, :-1]
     ybar = Y.mean(axis=0)
     S = np.cov(Y, rowvar=False, ddof=1)
     p = Y.shape[1]

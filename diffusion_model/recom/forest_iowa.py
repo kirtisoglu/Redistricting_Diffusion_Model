@@ -33,8 +33,18 @@ both seeds, with the two chains' quarter means on the same level. Short
 runs are for direction and timing only; the tree move's ESS in a short run
 is too small to quote a ratio.
 
-Usage:  python3 recom/forest_iowa.py short [n_steps] [seed] [tau]
-        python3 recom/forest_iowa.py long forest|hybrid [n_steps] [seed]
+TARGET.  Every command takes a final argument "pi" (default) or "tree".
+"pi" is the paper's kernel-weighted target pi_w; "tree" is the
+tree-weighted tempered measure prod tau(V_d) * pi_w. Under "pi" the forest
+move pays the tree-count ratio in its Hastings ratio (on Iowa that term
+averages e^-6 and is the dominant rejection); under "tree" it cancels for
+the forest move and is paid by the local move instead. The kill test is
+run under both, and the write-up reports where the local move helps.
+Output files carry the target in their name. The paper's tree-part chain
+is run only under "pi".
+
+Usage:  python3 recom/forest_iowa.py short [n_steps] [seed] [tau] [pi|tree]
+        python3 recom/forest_iowa.py long forest|hybrid [n_steps] [seed] [pi|tree]
 """
 
 import sys
@@ -51,7 +61,7 @@ if str(_DIFF) not in sys.path:
 from recom.problems import setup_problem
 from recom.qp_model import kernel_uniform, kernel_perimeter, make_kernel_density
 from recom.hybrid import Target, run_hybrid
-from recom.forest_recom import run_forest_hybrid
+from recom.forest_recom import run_forest_hybrid, make_target
 from recom.kill_stats import chain_summary
 
 MODE = sys.argv[1] if len(sys.argv) > 1 else "short"
@@ -90,19 +100,21 @@ def run_short():
     N = int(sys.argv[2]) if len(sys.argv) > 2 else 200_000
     SEED = int(sys.argv[3]) if len(sys.argv) > 3 else 42
     TAU = float(sys.argv[4]) if len(sys.argv) > 4 else TAU_DEFAULT
+    TARGET = sys.argv[5] if len(sys.argv) > 5 else "pi"
     P_LOCALS = (0.1, 0.3)
     p = setup_problem("iowa", _REPO)
     graph, eps, ideal, init = p["graph"], p["eps"], p["ideal"], p["init"]
     cfgs = targets(graph, init, (("uniform", kernel_uniform),
                                  ("perimeter", kernel_perimeter),
                                  ("density", make_kernel_density(sigma=1.0))))
-    store = {"n_steps": N, "seed": SEED, "tau": TAU, "mode": "short"}
-    print(f"Iowa, k=4, eps={eps}, {N} steps per chain, tau = {TAU}, seed {SEED}\n")
+    store = {"n_steps": N, "seed": SEED, "tau": TAU, "mode": "short", "target": TARGET}
+    print(f"Iowa, k=4, eps={eps}, {N} steps per chain, tau = {TAU}, seed {SEED}, "
+          f"target = {TARGET}\n")
     print(f"{'kernel':>10} {'lam':>7} {'chain':>14} {'acc glob':>9} {'acc loc':>8} "
           f"{'mv/loc':>7} {'fast':>5} {'wcut h1':>8} {'wcut h2':>8} {'ESS':>7} "
           f"{'wall s':>8} {'ESS/s':>7}")
     for kname, kfn, lam in cfgs:
-        tgt = Target(graph, kfn, lam)
+        tgt = make_target(TARGET, graph, kfn, lam)
         res = run_forest_hybrid(tgt, init, ideal, eps, N, 0.0, TAU, 1.0, SEED, label=f"{kname} forest")
         s = chain_summary(res, BURN)
         base = s["ess_s"]
@@ -113,12 +125,13 @@ def run_short():
             s = chain_summary(res, BURN)
             print_row(kname, lam, f"f-hybrid p={pl}", s, base)
             store_res(store, f"{kname}_fhybrid_p{pl}", res, lam)
-        res = run_hybrid(tgt, init, ideal, eps, N, 0.0, TAU, 1.0, SEED, label=f"{kname} tree-part")
-        s = chain_summary(res, BURN)
-        print_row(kname, lam, "tree-part", s, base)
-        store_res(store, f"{kname}_treepart", res, lam)
+        if TARGET == "pi":
+            res = run_hybrid(tgt, init, ideal, eps, N, 0.0, TAU, 1.0, SEED, label=f"{kname} tree-part")
+            s = chain_summary(res, BURN)
+            print_row(kname, lam, "tree-part", s, base)
+            store_res(store, f"{kname}_treepart", res, lam)
         print()
-    out = OUT_DIR / f"forest_iowa_short_tau{TAU:g}_seed{SEED}.npz"
+    out = OUT_DIR / f"forest_iowa_short_tau{TAU:g}_seed{SEED}_{TARGET}.npz"
     np.savez(out, **store)
     print(f"Saved {out.name}")
 
@@ -127,25 +140,27 @@ def run_long():
     WHICH = sys.argv[2] if len(sys.argv) > 2 else "forest"
     N = int(sys.argv[3]) if len(sys.argv) > 3 else 2_000_000
     SEED = int(sys.argv[4]) if len(sys.argv) > 4 else 42
+    TARGET = sys.argv[5] if len(sys.argv) > 5 else "pi"
     TAU = TAU_DEFAULT
     P_LOCAL = 0.0 if WHICH == "forest" else 0.1
     p = setup_problem("iowa", _REPO)
     graph, eps, ideal, init = p["graph"], p["eps"], p["ideal"], p["init"]
     cfgs = targets(graph, init, (("perimeter", kernel_perimeter),
                                  ("density", make_kernel_density(sigma=1.0))))
-    store = {"n_steps": N, "seed": SEED, "tau": TAU, "p_local": P_LOCAL, "mode": "long"}
+    store = {"n_steps": N, "seed": SEED, "tau": TAU, "p_local": P_LOCAL, "mode": "long",
+             "target": TARGET}
     for kname, kfn, lam in cfgs:
-        tgt = Target(graph, kfn, lam)
+        tgt = make_target(TARGET, graph, kfn, lam)
         res = run_forest_hybrid(tgt, init, ideal, eps, N, P_LOCAL, TAU, 1.0, SEED,
                                 log_every=N // 20, label=f"{kname} {WHICH}")
         s = chain_summary(res, BURN)
         qm = " ".join(f"{v:.2f}" for v in s["quarters"])
-        print(f"{kname:>10} lam={lam:.3f} {WHICH} {N} steps seed {SEED}: "
+        print(f"{kname:>10} lam={lam:.3f} {WHICH} {N} steps seed {SEED} target {TARGET}: "
               f"acc forest {s['acc_global']:.4f} acc loc {s['acc_local']:.3f} "
               f"quarter means {qm}  ESS {s['ess']:.0f}  wall {s['wall']:.0f}s  "
               f"ESS/s {s['ess_s']:.4f}", flush=True)
         store_res(store, kname, res, lam)
-    out = OUT_DIR / f"forest_iowa_long_{WHICH}_seed{SEED}.npz"
+    out = OUT_DIR / f"forest_iowa_long_{WHICH}_seed{SEED}_{TARGET}.npz"
     np.savez(out, **store)
     print(f"Saved {out.name}")
 

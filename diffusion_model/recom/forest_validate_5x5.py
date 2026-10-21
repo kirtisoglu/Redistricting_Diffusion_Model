@@ -25,9 +25,15 @@ KILL RATIO on this fiber: ESS/s(f-hybrid) / ESS/s(forest). Reported, not
 decisive: under exact balance the local move's first-order channel is
 closed (paper Section 4.6), so a passenger verdict here is expected.
 
-Writes: iowa_hybrid_test_out/forest_validate_5x5_p{P}_tau{TAU}.npz
-Usage:  python3 recom/forest_validate_5x5.py [n_steps] [seed] [p_local] [tau]
-Default: 200000 42 0.2 0.1
+The fifth argument selects the target: "pi" (default) is the paper's
+pi_w, "tree" is the tree-weighted tempered measure prod tau(V_d) * pi_w,
+on which the forest move pays no tree-count ratio and the local move
+does; both are enumerated exactly here. The paper's tree-part chain is
+run only under "pi", since hybrid.py has no tree-weighted target.
+
+Writes: iowa_hybrid_test_out/forest_validate_5x5_p{P}_tau{TAU}_{target}.npz
+Usage:  python3 recom/forest_validate_5x5.py [n_steps] [seed] [p_local] [tau] [pi|tree]
+Default: 200000 42 0.2 0.1 pi
 """
 
 import json
@@ -44,16 +50,17 @@ if str(_DIFF) not in sys.path:
 
 from recom.problems import setup_problem, assignment_canonical
 from recom.qp_model import kernel_uniform, make_kernel_density
-from recom.hybrid import Target, run_hybrid
-from recom.forest_recom import run_forest_hybrid
+from recom.hybrid import run_hybrid, log_tau
+from recom.forest_recom import run_forest_hybrid, make_target
 from recom.kill_stats import tv, floor_tv, hotelling_marginal, chain_summary
 
 N = int(sys.argv[1]) if len(sys.argv) > 1 else 200_000
 SEED = int(sys.argv[2]) if len(sys.argv) > 2 else 42
 P_LOCAL = float(sys.argv[3]) if len(sys.argv) > 3 else 0.2
 TAU = float(sys.argv[4]) if len(sys.argv) > 4 else 0.1
+TARGET = sys.argv[5] if len(sys.argv) > 5 else "pi"     # "pi" or "tree"
 ALPHA, BETA = TAU, 1.0
-OUT_TAG = f"_p{P_LOCAL:g}_tau{TAU:g}"
+OUT_TAG = f"_p{P_LOCAL:g}_tau{TAU:g}_{TARGET}"
 BURN = 0.1
 
 
@@ -76,6 +83,13 @@ def main():
         plans[int(pid)] = a
     ids_sorted = np.array(sorted(plans))
     pos = {i: j for j, i in enumerate(ids_sorted)}
+    # spanning-tree weight of every plan, for the tree-weighted target
+    log_tw = np.zeros(len(ids_sorted))
+    if TARGET == "tree":
+        for j, i in enumerate(ids_sorted):
+            a = plans[i]
+            log_tw[j] = sum(log_tau(graph, [v for v in a if a[v] == d])
+                            for d in set(a.values()))
 
     def state_id(asn):
         return lookup.get(assignment_canonical(asn), -1)
@@ -85,26 +99,27 @@ def main():
         ("uniform", kernel_uniform, 1.00),
         ("density", make_kernel_density(sigma=1.0), 1.00),
     ]
-    chains = [
+    chains = ([
         ("tree-part", lambda tgt, tag: run_hybrid(tgt, init, ideal, eps, N, 0.0, ALPHA, BETA, SEED,
                                                   state_id=state_id, label=tag)),
+    ] if TARGET == "pi" else []) + [
         ("forest", lambda tgt, tag: run_forest_hybrid(tgt, init, ideal, eps, N, 0.0, ALPHA, BETA, SEED,
                                                       state_id=state_id, label=tag)),
         ("f-hybrid", lambda tgt, tag: run_forest_hybrid(tgt, init, ideal, eps, N, P_LOCAL, ALPHA, BETA, SEED,
                                                         state_id=state_id, label=tag)),
     ]
-    store = {"n_steps": N, "seed": SEED, "p_local": P_LOCAL, "tau": TAU}
+    store = {"n_steps": N, "seed": SEED, "p_local": P_LOCAL, "tau": TAU, "target": TARGET}
     print(f"5x5 fiber, {n_fiber} states, {N} steps per chain, "
-          f"p_local = {P_LOCAL}, tau = {TAU}\n")
+          f"p_local = {P_LOCAL}, tau = {TAU}, target = {TARGET}\n")
     print(f"{'config':>16} {'chain':>9} {'TV marg':>8} {'floor':>7} {'z':>7} "
           f"{'Hotel p':>8} {'TV full':>8} {'floor':>7} {'acc glob':>9} "
           f"{'acc loc':>8} {'mv/loc':>7} {'ESS':>7} {'wall s':>7} {'ESS/s':>7}")
     gate_ok = True
     for kname, kfn, lam in configs:
-        tgt = Target(graph, kfn, lam)
+        tgt = make_target(TARGET, graph, kfn, lam)
         wc_all = np.array([tgt.wcut(plans[i]) for i in ids_sorted])
         nc_all = np.array([tgt.ncut(plans[i]) for i in ids_sorted])
-        logpi = -lam * wc_all
+        logpi = -lam * wc_all + log_tw
         pi = np.exp(logpi - logpi.max())
         pi /= pi.sum()
         vals = np.unique(nc_all)
@@ -137,9 +152,10 @@ def main():
             store[f"{tag}_{cname}_wall"] = res["wall"]
             store[f"{tag}_{cname}_z"] = z
             store[f"{tag}_{cname}_hotelling_p"] = hp
-        print(f"{'':>16} forest / tree-part ESS/s = {rates['forest']/rates['tree-part']:.2f}"
-              f"   kill ratio f-hybrid / forest = {rates['f-hybrid']/rates['forest']:.2f}\n",
-              flush=True)
+        base_line = (f"forest / tree-part ESS/s = {rates['forest']/rates['tree-part']:.2f}   "
+                     if "tree-part" in rates else "")
+        print(f"{'':>16} {base_line}kill ratio f-hybrid / forest = "
+              f"{rates['f-hybrid']/rates['forest']:.2f}\n", flush=True)
 
     np.savez(_HERE / "iowa_hybrid_test_out" / f"forest_validate_5x5{OUT_TAG}.npz", **store)
     print(f"Saved forest_validate_5x5{OUT_TAG}.npz")
