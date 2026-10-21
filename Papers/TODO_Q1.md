@@ -233,11 +233,83 @@ paper's framework, not a second paper.
 
 ### Step 0
 
-(paste)
+Run 2026-10-21 on commit e4743a6 (`forest_step0_kernel_check.log`). Passes: largest violation 1.45e-15 (limit 1e-14), closed form vs enumeration 1.8e-16 (limit 1e-12). Note that p_H = 1 on this fiber, so the retry rule is not exercised here; the 5x5 gate below exercises it.
+
+```
+lifted 2x3 fiber, target = pi, uniform kernel, lam = 0.10
+  forest   max rel DB violation 3.90e-16   max |row sum - 1| 0.0e+00   min diagonal 0.0333
+  local    max rel DB violation 1.41e-15   max |row sum - 1| 3.3e-16   min diagonal 0.7525
+  mixture  max rel DB violation 4.34e-16   max |row sum - 1| 4.4e-16   min diagonal 0.4496
+  (18 labeled plans, 30 lifted states, tau(H) = 15, p_H = 1.000, retry factor c_H = 1.0000, closed-form proposal mass vs enumeration: max rel err 1.8e-16)
+lifted 2x3 fiber, target = pi, density kernel (rho = x, sigma = 1), lam = 1.0
+  forest   max rel DB violation 2.87e-16   max |row sum - 1| 2.2e-16   min diagonal 0.0333
+  local    max rel DB violation 1.09e-15   max |row sum - 1| 2.2e-16   min diagonal 0.7392
+  mixture  max rel DB violation 3.56e-16   max |row sum - 1| 4.4e-16   min diagonal 0.4572
+  (18 labeled plans, 30 lifted states, tau(H) = 15, p_H = 1.000, retry factor c_H = 1.0000, closed-form proposal mass vs enumeration: max rel err 1.8e-16)
+lifted 2x3 fiber, target = tree, uniform kernel, lam = 0.10
+  forest   max rel DB violation 3.71e-16   max |row sum - 1| 2.2e-16   min diagonal 0.0556
+  local    max rel DB violation 1.45e-15   max |row sum - 1| 2.2e-16   min diagonal 0.6841
+  mixture  max rel DB violation 5.23e-16   max |row sum - 1| 3.3e-16   min diagonal 0.4032
+  (18 labeled plans, 30 lifted states, tau(H) = 15, p_H = 1.000, retry factor c_H = 1.0000, closed-form proposal mass vs enumeration: max rel err 1.8e-16)
+lifted 2x3 fiber, target = tree, density kernel (rho = x, sigma = 1), lam = 1.0
+  forest   max rel DB violation 4.09e-16   max |row sum - 1| 1.1e-16   min diagonal 0.0333
+  local    max rel DB violation 1.11e-15   max |row sum - 1| 4.4e-16   min diagonal 0.7392
+  mixture  max rel DB violation 5.97e-16   max |row sum - 1| 2.2e-16   min diagonal 0.3862
+  (18 labeled plans, 30 lifted states, tau(H) = 15, p_H = 1.000, retry factor c_H = 1.0000, closed-form proposal mass vs enumeration: max rel err 1.8e-16)
+```
 
 ### Step 1: 5x5 gate, pi and tree
 
-(paste both tables and GATE lines)
+Both passed. Run 2026-10-21 on commit e4743a6.
+
+Under pi (`forest_validate_5x5_pi.log`):
+
+```
+5x5 fiber, 4006 states, 200000 steps per chain, p_local = 0.2, tau = 0.1, target = pi
+
+          config     chain  TV marg   floor       z  Hotel p  TV full   floor  acc glob  acc loc  mv/loc     ESS  wall s   ESS/s
+ uniform lam=0.1 tree-part   0.0097  0.0386    -1.8    0.582   0.6191  0.9076     0.066      nan     nan     384     7.5    51.1
+ uniform lam=0.1    forest   0.0055  0.0103    -1.2    0.460   0.1653  0.3500     0.851      nan     nan    5262    24.8   211.8
+ uniform lam=0.1  f-hybrid   0.0127  0.0119    +0.2    0.434   0.1923  0.3927     0.851    0.660   0.013    3812    26.5   143.8
+                 forest / tree-part ESS/s = 4.15   kill ratio f-hybrid / forest = 0.68
+
+   uniform lam=1 tree-part   0.0284  0.0431    -0.8    0.213   0.4499  0.7781     0.074      nan     nan     330     7.3    45.2
+   uniform lam=1    forest   0.0035  0.0081    -1.3    0.800   0.1151  0.2333     0.979      nan     nan    8298    24.5   338.6
+   uniform lam=1  f-hybrid   0.0047  0.0098    -1.3    0.827   0.1309  0.2745     0.979    0.673   0.015    6303    26.2   240.3
+                 forest / tree-part ESS/s = 7.49   kill ratio f-hybrid / forest = 0.71
+
+   density lam=1 tree-part   0.0283  0.0365    -0.6    0.603   0.5810  0.8693     0.069      nan     nan     418     7.6    55.3
+   density lam=1    forest   0.0037  0.0093    -1.5    0.960   0.1621  0.2958     0.876      nan     nan    6751    26.5   254.5
+   density lam=1  f-hybrid   0.0050  0.0112    -1.5    0.248   0.1795  0.3610     0.876    0.784   0.005    4606    27.3   168.9
+                 forest / tree-part ESS/s = 4.61   kill ratio f-hybrid / forest = 0.66
+
+Saved forest_validate_5x5_p0.2_tau0.1_pi.npz
+GATE PASSED: forest and f-hybrid sample their enumerated targets.
+```
+
+Under the tree-weighted target (`forest_validate_5x5_tree.log`):
+
+```
+5x5 fiber, 4006 states, 200000 steps per chain, p_local = 0.2, tau = 0.1, target = tree
+
+          config     chain  TV marg   floor       z  Hotel p  TV full   floor  acc glob  acc loc  mv/loc     ESS  wall s   ESS/s
+ uniform lam=0.1    forest   0.0093  0.0085    +0.2    0.370   0.1022  0.2038     0.944      nan     nan    6617    25.7   257.3
+ uniform lam=0.1  f-hybrid   0.0056  0.0090    -0.8    0.778   0.1139  0.2315     0.942    0.675   0.011    5136    27.2   188.8
+                 kill ratio f-hybrid / forest = 0.73
+
+   uniform lam=1    forest   0.0026  0.0050    -1.0    0.639   0.0745  0.1282     0.884      nan     nan    6743    25.4   265.9
+   uniform lam=1  f-hybrid   0.0047  0.0060    -0.4    0.411   0.0886  0.1474     0.886    0.683   0.011    4933    27.1   182.3
+                 kill ratio f-hybrid / forest = 0.69
+
+   density lam=1    forest   0.0072  0.0070    +0.1    0.456   0.0949  0.1774     0.906      nan     nan    6629    25.6   259.3
+   density lam=1  f-hybrid   0.0034  0.0081    -1.3    0.699   0.1122  0.2021     0.906    0.789   0.004    5066    30.1   168.6
+                 kill ratio f-hybrid / forest = 0.65
+
+Saved forest_validate_5x5_p0.2_tau0.1_tree.npz
+GATE PASSED: forest and f-hybrid sample their enumerated targets.
+```
+
+The same gate under pi on the earlier commit a3dbc8f (no retry) also passed; its outputs are kept as `forest_validate_5x5_a3dbc8f.log` and `forest_validate_5x5_p0.2_tau0.1_a3dbc8f.npz`.
 
 ### Step 2: Iowa short, pi and tree
 
