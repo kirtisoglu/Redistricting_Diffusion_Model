@@ -384,7 +384,50 @@ Iowa, k=4, eps=0.05, 200000 steps per chain, tau = 0.1, seed 42
 Saved forest_iowa_short_tau0.1_seed42.npz
 ```
 
+The cloud session's recomputation of the no-retry reference from its artifact, with quarter means, and its reading of that run (written before the revised-code runs above existed):
+
+| kernel | chain | acc global | acc local | quarter means of weighted cut | ESS | wall s | ESS/s | ratio vs forest |
+|---|---|---|---|---|---|---|---|---|
+| uniform | forest | 0.077 | | 94.4 91.7 91.3 86.1 | 23 | 92 | 0.246 | 1.00 |
+| uniform | f-hybrid p=0.1 | 0.077 | 0.226 | 89.3 87.6 93.5 88.9 | 40 | 121 | 0.327 | 1.33 |
+| uniform | f-hybrid p=0.3 | 0.107 | 0.262 | 89.6 87.9 90.0 89.4 | 69 | 165 | 0.418 | 1.70 |
+| uniform | tree-part | 0.012 | | 82.0 84.4 87.0 87.5 | 14 | 38 | 0.370 | 1.50 |
+| perimeter | forest | 0.095 | | 28.0 30.5 26.8 29.4 | 14 | 89 | 0.161 | 1.00 |
+| perimeter | f-hybrid p=0.1 | 0.094 | 0.530 | 26.8 28.2 28.4 28.8 | 22 | 106 | 0.211 | 1.31 |
+| perimeter | f-hybrid p=0.3 | 0.093 | 0.523 | 29.4 28.6 28.7 28.5 | 56 | 133 | 0.422 | 2.62 |
+| perimeter | tree-part | 0.006 | | 25.7 25.4 27.2 29.1 | 6 | 36 | 0.164 | 1.02 |
+| density | forest | 0.093 | | 19.4 17.9 18.4 17.5 | 32 | 87 | 0.366 | 1.00 |
+| density | f-hybrid p=0.1 | 0.108 | 0.675 | 18.5 17.5 18.6 18.2 | 57 | 97 | 0.588 | 1.61 |
+| density | f-hybrid p=0.3 | 0.099 | 0.685 | 18.5 18.2 18.4 18.2 | 116 | 112 | 1.037 | 2.84 |
+| density | tree-part | 0.007 | | 13.1 13.4 14.9 14.8 | 6 | 32 | 0.194 | 0.53 |
+
+Reading. Direction only: the forest move's ESS is 14 to 32, so its ESS/s
+is rough and probably overstated (short runs understate autocorrelation,
+as the paper found for the old tree move). Three things are worth
+noting. The hybrid at p = 0.3 beats p = 0.1 on every kernel, so the long
+runs should include p = 0.3. The hybrid's quarter means are stable
+while the forest move's wander (uniform 94 to 86, perimeter 27 to 30),
+the same convergence contrast the paper reported against the old tree
+move. And on Iowa the forest move is not faster per second than the
+paper's tree move (0.16 to 0.37 against 0.16 to 0.37): its steps cost
+2.5 times more, since every feasible draw pays the determinants and the
+crossing-edge sums, so its order-of-magnitude acceptance advantage is
+spent on cost. On the grid, where steps are cheap, it is 4 to 7 times
+faster. This matters for the write-up: the forest move is the right
+baseline, but it does not by itself demolish the paper's Iowa ratios.
+
 ### Step 3: Iowa long
+
+Not yet run. In addition to the eight commands of Step 3 above, run the
+hybrid at p = 0.3 under pi on both seeds, since the short runs favour it
+(the long mode's sixth argument is p_local; the file name gains `_p0.3`):
+
+    python3 recom/forest_iowa.py long hybrid 2000000 42 pi 0.3 | tee recom/iowa_hybrid_test_out/forest_iowa_long_hybrid_p0.3_seed42_pi.log
+    python3 recom/forest_iowa.py long hybrid 2000000 43 pi 0.3 | tee recom/iowa_hybrid_test_out/forest_iowa_long_hybrid_p0.3_seed43_pi.log
+
+The criterion is unchanged: the hybrid passes if either p clears 1.5 on
+both kernels and both seeds with matching quarter means, and the paper
+reports the p it used.
 
 (paste the summary lines; then fill the table)
 
@@ -398,6 +441,10 @@ Saved forest_iowa_short_tau0.1_seed42.npz
 | tree | density | 42 | | | | |
 | tree | perimeter | 43 | | | | |
 | tree | density | 43 | | | | |
+| pi, p=0.3 | perimeter | 42 | | | | |
+| pi, p=0.3 | density | 42 | | | | |
+| pi, p=0.3 | perimeter | 43 | | | | |
+| pi, p=0.3 | density | 43 | | | | |
 
 Verdict under pi:
 
