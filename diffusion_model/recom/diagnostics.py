@@ -181,7 +181,7 @@ def island_trace_plot(chain_results, out_path, suptitle):
                     if trace[i] is not None and trace[i - 1] is not None
                     and trace[i] != trace[i - 1])
         ax.set_ylabel(lbl, fontsize=9)
-        ax.set_title(f"island visits — jump rate {jumps}/{valid_pairs} = "
+        ax.set_title(f"community visits — jump rate {jumps}/{valid_pairs} = "
                      f"{jumps/max(valid_pairs,1):.1%}", fontsize=9)
         ax.grid(True, alpha=0.3)
     axes[-1].set_xlabel("step")

@@ -21,6 +21,24 @@ def cut_edges_count(graph, asn):
     return sum(1 for u, v in graph.edges() if asn[u] != asn[v])
 
 
+def balanced_tree_part(graph, K, ideal, pop_col, eps, max_tries=50):
+    """recursive_tree_part with an explicit global-balance check.
+
+    gerrychain's recursive_tree_part splits sequentially and can leave
+    the final district outside the (1±eps)·ideal window; retry until
+    every district is within tolerance.
+    """
+    for _ in range(max_tries):
+        asn = dict(recursive_tree_part(graph, range(K), ideal, pop_col, eps))
+        pops = {}
+        for v, d in asn.items():
+            pops[d] = pops.get(d, 0) + graph.nodes[v][pop_col]
+        if all(abs(p - ideal) <= eps * ideal for p in pops.values()):
+            return asn
+    raise RuntimeError(
+        f"balanced_tree_part: no valid initial plan in {max_tries} tries")
+
+
 def assignment_canonical(asn):
     """Canonicalise an assignment as frozenset-of-frozensets of node ids."""
     parts = {}
@@ -73,7 +91,7 @@ def _setup_iowa(repo_root, K=4, eps=0.05):
         graph.nodes[n]["density"] = graph.nodes[n]["density_raw"] / mean_rho
     total = sum(graph.nodes[n]["TOTPOP"] for n in graph.nodes())
     ideal = total / K
-    init = dict(recursive_tree_part(graph, range(K), ideal, "TOTPOP", eps))
+    init = balanced_tree_part(graph, K, ideal, "TOTPOP", eps)
     label = f"Iowa, k={K}, ε={eps}"
     return {
         "graph": graph, "K": K, "eps": eps, "ideal": ideal,
@@ -90,7 +108,7 @@ def _setup_5x5(repo_root, fiber_dir, K=5, eps=0.05):
         graph.nodes[n]["population"] = 50
         graph.nodes[n]["density"] = 0
     ideal = 250.0
-    init = dict(recursive_tree_part(graph, range(K), ideal, "population", eps))
+    init = balanced_tree_part(graph, K, ideal, "population", eps)
 
     fiber_path = fiber_dir / "fiber_5x5_partitions.json"
     with open(fiber_path) as f:
@@ -148,7 +166,7 @@ def _setup_nc(repo_root, K=4, eps=0.05):
     ideal = total / K
     print(f"  {len(graph.nodes())} precincts, {len(graph.edges())} edges; "
           f"ideal pop = {ideal:,.0f}")
-    init = dict(recursive_tree_part(graph, range(K), ideal, "TOTPOP", eps))
+    init = balanced_tree_part(graph, K, ideal, "TOTPOP", eps)
     label = f"NC precinct, k={K}, ε={eps}"
     return {
         "graph": graph, "K": K, "eps": eps, "ideal": ideal,
@@ -166,7 +184,7 @@ def _setup_5x5_eps02(repo_root, fiber_dir, K=5, eps=0.20):
         graph.nodes[n]["population"] = 50
         graph.nodes[n]["density"] = 0
     ideal = 250.0
-    init = dict(recursive_tree_part(graph, range(K), ideal, "population", eps))
+    init = balanced_tree_part(graph, K, ideal, "population", eps)
 
     fiber_path = fiber_dir / "fiber_5x5_eps02_partitions.json"
     print(f"  Loading 193k fiber from {fiber_path} ...")

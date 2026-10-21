@@ -28,7 +28,7 @@ import sys
 from pathlib import Path
 
 import numpy as np
-from scipy.stats import ks_2samp, ttest_ind
+from scipy.stats import ks_2samp, norm
 
 _REPO = Path(__file__).resolve().parent.parent.parent
 _DIFF = _REPO / "diffusion_model"
@@ -39,7 +39,8 @@ from recom.problems import setup_problem, load_fiber_islands, cut_edges_count
 from recom.chains import (run_chain,
                           make_vanilla_step, make_tempered_step,
                           make_qp_diffusion_mix_step,
-                          make_iqp_hybrid_step, make_specrecom_mix_step)
+                          make_iqp_hybrid_step, make_specrecom_mix_step,
+                          make_qp_mh_step)
 from recom.diagnostics import (kernel_correctness_table, bias_bound_table,
                                island_neck_table, cuts_compare_plot,
                                island_trace_plot, expected_target_cuts)
@@ -47,9 +48,43 @@ from recom.qp_model import (make_partition, kernel_uniform, kernel_perimeter,
                             make_kernel_density)
 
 
+def ess_geyer(x):
+    """Effective sample size via Geyer's initial-positive-sequence
+    estimator of the integrated autocorrelation time."""
+    x = np.asarray(x, dtype=float)
+    n = len(x)
+    x = x - x.mean()
+    var = np.dot(x, x) / n
+    if var == 0 or n < 4:
+        return float(n)
+    acf = np.correlate(x, x, mode="full")[n - 1:] / (n * var)
+    tau = 1.0
+    for m in range(1, n // 2):
+        gamma = acf[2 * m - 1] + acf[2 * m]
+        if gamma <= 0:
+            break
+        tau += 2.0 * gamma
+    return max(n / tau, 1.0)
+
+
+def ess_corrected_compare(ref, new):
+    """Mean difference with ESS-corrected z-test and Cohen's d.
+
+    Returns (delta, pct, d_cohen, ess_ref, ess_new, p_z)."""
+    d = new.mean() - ref.mean()
+    pooled = np.sqrt((ref.var() + new.var()) / 2)
+    d_cohen = d / pooled if pooled > 0 else float("nan")
+    e_r, e_n = ess_geyer(ref), ess_geyer(new)
+    se = np.sqrt(ref.var() / e_r + new.var() / e_n)
+    z = d / se if se > 0 else float("nan")
+    p = 2 * (1 - norm.cdf(abs(z)))
+    return d, 100 * d / ref.mean(), d_cohen, e_r, e_n, p
+
+
 # ─── Config ──────────────────────────────────────────────────────────────────
-MODE = "5x5_eps02"    # "iowa" or "5x5" or "5x5_eps02"
-SEED = 42
+MODE = sys.argv[1] if len(sys.argv) > 1 else "5x5"   # "iowa"|"5x5"|"5x5_eps02"|"nc"
+SEED = int(sys.argv[2]) if len(sys.argv) > 2 else 42
+KERNEL_ARG = sys.argv[3] if len(sys.argv) > 3 else "uniform"
 LAM = 0.10
 N_STEPS = 1000 if MODE in ("5x5", "5x5_eps02") else 500
 BURN = 100 if MODE in ("5x5", "5x5_eps02") else 100
@@ -59,7 +94,7 @@ QP_ALPHA       = 10.0
 QP_BETA        = 1.0
 QP_THRESHOLD   = "cheeger"
 QP_NORMALIZE   = False    # unnormalised L: xᵀLx = weighted cut on binary
-QP_KERNEL      = "uniform"  # "uniform" | "perimeter" | "density"
+QP_KERNEL      = KERNEL_ARG  # "uniform" | "perimeter" | "density"
 QP_KERNEL_SIGMA = 1.0       # σ for the density kernel
 
 # Diversity controls applied to chains B and C only:
@@ -75,8 +110,17 @@ IQP_TIME_LIMIT  = 5.0
 IQP_ALPHA       = 10.0
 IQP_BETA        = 1.0
 
-random.seed(SEED)
-np.random.seed(SEED)
+# Chain E: exactly reversible QP-MH sampler.  β ≫ α keeps x* near-binary
+# so single-shot Bernoulli rounding stays feasible often enough.
+E_ALPHA = 1.0
+E_BETA  = 10.0
+
+
+def seed_for(chain_tag):
+    """Independent, reproducible RNG stream per chain."""
+    offset = {"V": 0, "A": 1, "B": 2, "C": 3, "D": 4, "E": 5}[chain_tag]
+    random.seed(SEED * 1000 + offset)
+    np.random.seed(SEED * 1000 + offset)
 
 HERE = Path(__file__).resolve().parent
 FIBER_EDGES = HERE / "fiber_5x5" / "fiber_5x5_edges.txt"
@@ -121,14 +165,16 @@ def main():
 
     # ── Chain definitions ──────────────────────────────────────────────────
     print(f"\n── V: Vanilla ReCom ({N_STEPS} steps) ──")
+    seed_for("V")
     V = run_chain("V", make_partition(graph, init),
                   make_vanilla_step(graph, ideal, eps),
-                  N_STEPS, fiber_lookup, island_of)
+                  N_STEPS, fiber_lookup, island_of, graph=graph, ideal=ideal)
 
     print(f"\n── A: Tempered ReCom λ={LAM} ({N_STEPS} steps) ──")
+    seed_for("A")
     A = run_chain("A", make_partition(graph, init),
                   make_tempered_step(graph, ideal, eps, LAM),
-                  N_STEPS, fiber_lookup, island_of)
+                  N_STEPS, fiber_lookup, island_of, graph=graph, ideal=ideal)
     A_acc = np.array([e[0] for e in A["extras"]])
 
     if QP_KERNEL == "uniform":
@@ -143,14 +189,15 @@ def main():
           f"thr={QP_THRESHOLD!r}, normalize={QP_NORMALIZE}, "
           f"kernel={QP_KERNEL!r}, jitter={WEIGHT_JITTER}, "
           f"tabu={TABU_SIZE}) ──")
+    seed_for("B")
     B = run_chain("B", make_partition(graph, init),
-                  make_qp_diffusion_mix_step(graph, ideal, eps, LAM,
+                  make_qp_diffusion_mix_step(graph, ideal, eps,
                                              P_RECOM, QP_ALPHA, QP_BETA,
                                              QP_THRESHOLD, QP_NORMALIZE,
                                              kernel_fn=kfn,
                                              weight_jitter=WEIGHT_JITTER,
                                              tabu_size=TABU_SIZE),
-                  N_STEPS, fiber_lookup, island_of)
+                  N_STEPS, fiber_lookup, island_of, graph=graph, ideal=ideal)
     B_kinds = [e[0] for e in B["extras"]]
     B_oks   = np.array([e[1] for e in B["extras"]])
     B_n_qp = sum(1 for k in B_kinds if k == "Q")
@@ -161,37 +208,46 @@ def main():
           f"({IQP_PER_RECOM} per step, α={IQP_ALPHA}, β={IQP_BETA}, "
           f"kernel={QP_KERNEL!r}, jitter={WEIGHT_JITTER}, "
           f"tabu={TABU_SIZE}) ──")
+    seed_for("C")
     C = run_chain("C", make_partition(graph, init),
                   make_iqp_hybrid_step(graph, ideal, eps, LAM,
                                        IQP_PER_RECOM, IQP_ALPHA, IQP_BETA,
                                        kfn, QP_NORMALIZE, IQP_TIME_LIMIT,
                                        weight_jitter=WEIGHT_JITTER,
                                        tabu_size=TABU_SIZE),
-                  N_STEPS, fiber_lookup, island_of)
+                  N_STEPS, fiber_lookup, island_of, graph=graph, ideal=ideal)
     C_recom_acc = np.array([e[0] for e in C["extras"]])
     C_iqp_imp   = np.array([e[1] for e in C["extras"]])
 
     print(f"\n── D: ReCom/SpecReCom mixture (Davies 2025) ──")
+    seed_for("D")
     D = run_chain("D", make_partition(graph, init),
                   make_specrecom_mix_step(graph, ideal, eps, P_RECOM),
-                  N_STEPS, fiber_lookup, island_of)
+                  N_STEPS, fiber_lookup, island_of, graph=graph, ideal=ideal)
     D_kinds = [e[0] for e in D["extras"]]
     D_oks   = np.array([e[1] for e in D["extras"]])
     D_n_spec = sum(1 for k in D_kinds if k == "S")
     D_spec_success = sum(1 for k, o in zip(D_kinds, D_oks) if k == "S" and o)
     D_spec_rate = D_spec_success / max(D_n_spec, 1)
 
+    print(f"\n── E: QP-MH exact sampler (α={E_ALPHA}, β={E_BETA}, "
+          f"λ={LAM}, kernel={QP_KERNEL!r}) ──")
+    seed_for("E")
+    E = run_chain("E", make_partition(graph, init),
+                  make_qp_mh_step(graph, ideal, eps, LAM,
+                                  E_ALPHA, E_BETA, kernel_fn=kfn),
+                  N_STEPS, fiber_lookup, island_of, graph=graph, ideal=ideal)
+    E_acc = np.array([e[0] for e in E["extras"]])
+
     # ── Compactness table ──────────────────────────────────────────────────
-    A_b, B_b, C_b, D_b = (A["cuts"][BURN:], B["cuts"][BURN:],
-                          C["cuts"][BURN:], D["cuts"][BURN:])
+    A_b, B_b, C_b, D_b, E_b = (A["cuts"][BURN:], B["cuts"][BURN:],
+                               C["cuts"][BURN:], D["cuts"][BURN:],
+                               E["cuts"][BURN:])
     V_b = V["cuts"][BURN:]
 
-    def cmp(ref, new):
-        d = new.mean() - ref.mean()
-        return d, 100 * d / ref.mean(), ks_2samp(ref, new).pvalue
-
     print("\n" + "=" * 72)
-    print(f"RESULTS — target-matched at λ={LAM}, after burn-in {BURN}")
+    print(f"RESULTS — target-matched at λ={LAM}, after burn-in {BURN}, "
+          f"seed {SEED}")
     print("=" * 72)
     print(f"  {label}")
     print(f"  initial cuts:                              {init_cuts}")
@@ -209,12 +265,26 @@ def main():
     print(f"  D: ReCom/SpecReCom mixture:                "
           f"mean={D_b.mean():6.2f}  std={D_b.std():4.2f}  "
           f"spec_share={D_n_spec/N_STEPS:.0%}  spec_success={D_spec_rate:.0%}")
-    for tag, post in [("B", B_b), ("C", C_b), ("D", D_b)]:
-        d, pct, p = cmp(A_b, post)
-        print(f"  Δ({tag} − A) = {d:+.2f}  ({pct:+.1f}%)   KS p = {p:.2e}")
+    print(f"  E: QP-MH exact sampler:                    "
+          f"mean={E_b.mean():6.2f}  std={E_b.std():4.2f}  "
+          f"acc={E_acc[BURN:].mean():.2%}")
+    print("\n  ESS-corrected comparisons vs A (Geyer IPS estimator):")
+    for tag, post in [("B", B_b), ("C", C_b), ("D", D_b), ("E", E_b)]:
+        d, pct, dc, e_r, e_n, p = ess_corrected_compare(A_b, post)
+        ks = ks_2samp(A_b, post).pvalue
+        print(f"  Δ({tag} − A) = {d:+.2f} ({pct:+.1f}%)  Cohen's d={dc:+.2f}  "
+              f"ESS(A)={e_r:.0f} ESS({tag})={e_n:.0f}  z-test p={p:.2e}  "
+              f"[naive KS p={ks:.1e} — descriptive only]")
     print(f"  Wall clock: " + "  ".join(
         f"{tag}={ch['times'].sum():.1f}s" for tag, ch
-        in [("V", V), ("A", A), ("B", B), ("C", C), ("D", D)]))
+        in [("V", V), ("A", A), ("B", B), ("C", C), ("D", D), ("E", E)]))
+
+    print("\n  BALANCE AUDIT (max district deviation from global ideal):")
+    for tag, ch in [("V", V), ("A", A), ("B", B), ("C", C), ("D", D), ("E", E)]:
+        pd_arr = ch.get("pop_dev")
+        if pd_arr is not None:
+            flag = "OK" if pd_arr.max() <= eps + 1e-9 else "VIOLATION"
+            print(f"    {tag}: max dev = {pd_arr.max():.4f}  (ε = {eps})  {flag}")
 
     # ── Diagnostic tables (5×5 only) ───────────────────────────────────────
     chains_for_tables = [
@@ -223,6 +293,7 @@ def main():
         ("B: QP-diffusion mix", B),
         ("C: ReCom + IQP local", C),
         ("D: ReCom + SpecReCom", D),
+        ("E: QP-MH exact", E),
     ]
     if fiber_lookup is not None:
         kernel_correctness_table(chains_for_tables, fiber_cuts, LAM,
@@ -232,23 +303,51 @@ def main():
             island_neck_table(chains_for_tables)
 
     # ── Plots ──────────────────────────────────────────────────────────────
-    suffix = MODE
+    suffix = MODE if QP_KERNEL == "uniform" else f"{MODE}_{QP_KERNEL}"
     cuts_compare_plot(chains_for_tables, label, init_cuts, LAM,
                       e_pi_cuts, BURN, OUT / f"target_matched_{suffix}.png")
     print(f"\n  Plot: {OUT / f'target_matched_{suffix}.png'}")
     if island_of is not None:
+        trace_label = ("5×5 grid, k=5, exact-balance fiber, |fiber|=4006"
+                       if MODE == "5x5" else label)
         island_trace_plot(chains_for_tables, OUT / f"island_trace_{suffix}.png",
-                          f"{label} — chain step-trace by island")
-        print(f"  Island trace: {OUT / f'island_trace_{suffix}.png'}")
+                          f"{trace_label} — chain step-trace by community")
+        print(f"  Community trace: {OUT / f'island_trace_{suffix}.png'}")
 
-    np.savez(OUT / f"target_matched_{suffix}.npz",
+    def _final(res):
+        """Final assignment as (node-key strings, district ids) arrays."""
+        asn = res["final_asn"]
+        keys = sorted(asn.keys(), key=str)
+        return (np.array([str(k) for k in keys]),
+                np.array([asn[k] for k in keys]))
+
+    finals = {}
+    for tag, res in [("V", V), ("A", A), ("B", B), ("C", C),
+                     ("D", D), ("E", E)]:
+        nk, dv = _final(res)
+        finals[f"{tag}_final_nodes"] = nk
+        finals[f"{tag}_final_dists"] = dv
+
+    np.savez(OUT / f"target_matched_{suffix}_seed{SEED}.npz",
              V=V["cuts"], A=A["cuts"], B=B["cuts"], C=C["cuts"], D=D["cuts"],
+             E=E["cuts"], **finals,
              A_acc=A_acc, C_recom_acc=C_recom_acc, C_iqp_imp=C_iqp_imp,
              B_oks=B_oks, B_kinds=np.array(B_kinds),
-             D_oks=D_oks, D_kinds=np.array(D_kinds),
+             D_oks=D_oks, D_kinds=np.array(D_kinds), E_acc=E_acc,
              V_t=V["times"], A_t=A["times"], B_t=B["times"],
-             C_t=C["times"], D_t=D["times"],
-             init_cuts=init_cuts, lam=LAM)
+             C_t=C["times"], D_t=D["times"], E_t=E["times"],
+             V_dev=V["pop_dev"], A_dev=A["pop_dev"], B_dev=B["pop_dev"],
+             C_dev=C["pop_dev"], D_dev=D["pop_dev"], E_dev=E["pop_dev"],
+             init_cuts=init_cuts, lam=LAM, seed=SEED,
+             config=np.array([f"mode={MODE}", f"n_steps={N_STEPS}",
+                              f"burn={BURN}", f"p_recom={P_RECOM}",
+                              f"alpha={QP_ALPHA}", f"beta={QP_BETA}",
+                              f"iqp_n={IQP_PER_RECOM}",
+                              f"iqp_alpha={IQP_ALPHA}", f"iqp_beta={IQP_BETA}",
+                              f"e_alpha={E_ALPHA}", f"e_beta={E_BETA}",
+                              f"kernel={QP_KERNEL}",
+                              f"jitter={WEIGHT_JITTER}", f"tabu={TABU_SIZE}",
+                              f"balance=global_ideal"]))
 
 
 if __name__ == "__main__":

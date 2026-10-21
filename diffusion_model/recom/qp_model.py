@@ -63,6 +63,25 @@ import networkx as nx
 import gurobipy as gp
 from gurobipy import GRB
 
+_GRB_ENV = None
+
+
+def _grb_env():
+    """Shared Gurobi environment (one license session per process).
+
+    Creating a fresh default environment per gp.Model call leaks
+    C-side memory across the tens of thousands of solves in a chain
+    run; at precinct scale this exhausts system memory. All models
+    must use this environment and dispose() themselves when done.
+    """
+    global _GRB_ENV
+    if _GRB_ENV is None:
+        env = gp.Env(empty=True)
+        env.setParam("OutputFlag", 0)
+        env.start()
+        _GRB_ENV = env
+    return _GRB_ENV
+
 from gerrychain import Partition
 from gerrychain.updaters import Tally, cut_edges
 
@@ -182,33 +201,39 @@ def make_partition(gc_graph, assignment):
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _solve_qp(graph, nodes, assignment, d1_id,
-              alpha=1.0, beta=10.0, epsilon=0.10):
+              alpha=1.0, beta=10.0, epsilon=0.10,
+              kernel_fn=None, ideal_pop=None):
     """
     Minimise   α · x^T L x  +  β · ‖x − x₀‖²
-    subject to  (1−ε)·p̄ ≤ popᵀx ≤ (1+ε)·p̄,   x ∈ [0,1]^n
+    subject to  balance bounds (see _balance_bounds),   x ∈ [0,1]^n
 
     x^T L x = Σ_{e=(u,v)} w(e)·(x_u−x_v)²  is the weighted cut.
-    Minimising it pushes boundaries to cross low-weight (cross-density)
-    edges — directly increasing the Density Score.
+    Edge weights come from `kernel_fn(graph, u, v)` if provided, else
+    from the legacy density-difference exponential.
 
     L is PSD  ⟹  objective is CONVEX.  No NonConvex flag needed.
-    Gurobi solves this as a standard convex QP, which is significantly
-    faster than the non-convex formulation.
 
     x₀  = current indicator (1 if node in D1, 0 if in D2).
-    p̄   = half the total population of the merged pair.
 
     Returns x_star ∈ [0,1]^n or None on solver failure.
+
+    IMPORTANT for MH use (qp_mh_proposal): this map must be a
+    deterministic function of (assignment, pair) so the reverse solve
+    reproduces the same proposal density — do NOT enable weight_jitter
+    here.
     """
     n      = len(nodes)
-    L, _   = build_laplacian(graph, nodes, attr="density")
+    L, _   = build_laplacian(graph, nodes, attr="density",
+                             kernel_fn=kernel_fn)
     x0     = np.array([1.0 if assignment[v] == d1_id else 0.0 for v in nodes])
     pop    = np.array([graph.nodes[v]["population"] for v in nodes])
-    p_bar  = pop.sum() / 2.0
+    pop_lo, pop_hi = _balance_bounds(pop.sum(), epsilon, ideal_pop)
+    if pop_lo > pop_hi:
+        return None
 
+    m = None
     try:
-        m = gp.Model("qp")
-        m.setParam("OutputFlag", 0)
+        m = gp.Model("qp", env=_grb_env())
         x = m.addVars(n, lb=0.0, ub=1.0, name="x")
 
         obj = gp.QuadExpr()
@@ -225,14 +250,17 @@ def _solve_qp(graph, nodes, assignment, d1_id,
 
         m.setObjective(obj, GRB.MINIMIZE)
         pe = gp.LinExpr(pop.tolist(), [x[i] for i in range(n)])
-        m.addConstr(pe >= (1 - epsilon) * p_bar)
-        m.addConstr(pe <= (1 + epsilon) * p_bar)
+        m.addConstr(pe >= pop_lo)
+        m.addConstr(pe <= pop_hi)
         m.optimize()
 
         if m.Status in (GRB.OPTIMAL, GRB.SUBOPTIMAL):
             return np.array([x[i].X for i in range(n)])
     except gp.GurobiError:
         pass
+    finally:
+        if m is not None:
+            m.dispose()
     return None
 
 
@@ -240,34 +268,53 @@ def _solve_qp(graph, nodes, assignment, d1_id,
 # Randomized rounding
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _randomized_round(x_star, nodes, d1_id, d2_id, graph, assignment,
-                      max_tries=20):
+def _randomized_round(x_star, nodes, d1_id, d2_id, graph, assignment):
     """
-    Bernoulli(x*_v) rounding with district-connectivity check.
+    Single-shot Bernoulli(x*_v) rounding.
 
-    Returns (new_assignment, log_q_fwd, bits) on success,
-            (None, None, None)               after max_tries failures.
+    Draws bits ONCE and returns (new_assignment, log_q_fwd, bits)
+    regardless of feasibility.  Feasibility (connectivity, balance) is
+    the caller's job: an infeasible draw is a proposal onto a
+    zero-target-mass state and is rejected by the MH step.  Keeping the
+    rounding single-shot keeps the proposal density exactly the
+    Bernoulli product — a retry-until-feasible loop would multiply q by
+    an intractable state-dependent normalisation and silently break
+    detailed balance.
     """
     n = len(nodes)
-    for _ in range(max_tries):
-        bits    = (np.random.rand(n) < x_star).astype(float)
-        new_asn = dict(assignment)
-        for i, v in enumerate(nodes):
-            new_asn[v] = d1_id if bits[i] == 1 else d2_id
+    eps      = 1e-12
+    # Clip BEFORE sampling: the proposal law must be exactly the
+    # Bernoulli(clip(x*)) product whose density enters the Hastings
+    # ratio.  Sampling from unclipped x* while evaluating the clipped
+    # density would let a move be accepted whose stated reverse
+    # probability is wrong when the QP optimum has active box bounds.
+    x_star_c = np.clip(x_star, eps, 1 - eps)
+    bits    = (np.random.rand(n) < x_star_c).astype(float)
+    new_asn = dict(assignment)
+    for i, v in enumerate(nodes):
+        new_asn[v] = d1_id if bits[i] == 1 else d2_id
 
-        nodes1 = [v for v, d in new_asn.items() if d == d1_id]
-        nodes2 = [v for v, d in new_asn.items() if d == d2_id]
-        if not nodes1 or not nodes2:
-            continue
-        sub1 = graph.subgraph(nodes1)
-        sub2 = graph.subgraph(nodes2)
-        if nx.is_connected(sub1) and nx.is_connected(sub2):
-            eps      = 1e-12
-            x_star_c = np.clip(x_star, eps, 1 - eps)
-            log_q    = np.sum(bits * np.log(x_star_c)
-                              + (1 - bits) * np.log(1 - x_star_c))
-            return new_asn, log_q, bits
-    return None, None, None
+    log_q    = np.sum(bits * np.log(x_star_c)
+                      + (1 - bits) * np.log(1 - x_star_c))
+    return new_asn, log_q, bits
+
+
+def _pair_split_feasible(new_asn, nodes, d1_id, d2_id, graph, epsilon,
+                         ideal_pop=None):
+    """True iff both sides of the (d1,d2) split are nonempty, connected,
+    and within the balance bounds."""
+    nodes1 = [v for v in nodes if new_asn[v] == d1_id]
+    nodes2 = [v for v in nodes if new_asn[v] == d2_id]
+    if not nodes1 or not nodes2:
+        return False
+    if not nx.is_connected(graph.subgraph(nodes1)):
+        return False
+    if not nx.is_connected(graph.subgraph(nodes2)):
+        return False
+    pop_total = sum(graph.nodes[v]["population"] for v in nodes)
+    pop_lo, pop_hi = _balance_bounds(pop_total, epsilon, ideal_pop)
+    pop1 = sum(graph.nodes[v]["population"] for v in nodes1)
+    return pop_lo <= pop1 <= pop_hi
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -275,21 +322,39 @@ def _randomized_round(x_star, nodes, d1_id, d2_id, graph, assignment,
 # ─────────────────────────────────────────────────────────────────────────────
 
 def qp_mh_proposal(graph, assignment,
-                   alpha=1.0, beta=10.0, epsilon=0.10, lam=0.05):
+                   alpha=1.0, beta=10.0, epsilon=0.10, lam=0.05,
+                   kernel_fn=None, ideal_pop=None):
     """
-    One QP-MH step.
+    One exactly reversible QP-MH step.
 
-    MH target : π(x) ∝ exp(−λ · cut_edges(x))
-    Acceptance : log α = −λ·Δcut
+    MH target : π(P) ∝ exp(−λ · cut_edges(P)) restricted to valid plans
+                (contiguous, ε-balanced); invalid states have π = 0.
+    Proposal  : pick an adjacent district pair uniformly (prob 1/|bp|),
+                solve the deterministic QP for x*, draw a SINGLE
+                Bernoulli(x*) rounding.
+    Acceptance: log a = −λ·Δcut
                         + log q(x|x′,pair) − log q(x′|x,pair)
-                        + log|bp(x)|       − log|bp(x′)|
+                        + log|bp(x)|       − log|bp(x′)|.
 
-    The QP proposal (min α·xᵀLx + β‖x−x₀‖²) generates candidates that
-    minimise the weighted cut (= maximise density alignment).  The MH step
-    then accepts/rejects them against the cut-edge target π, ensuring detailed balance.
+    Exactness: the QP map is deterministic given (state, pair), the
+    rounding density is the exact Bernoulli product (single-shot, no
+    retry-until-feasible conditioning), and infeasible proposals are
+    rejected because the target assigns them zero mass.  The reverse
+    move can always select the same pair (both sides of a split of a
+    connected merged region share at least one edge, so d1,d2 remain
+    adjacent).  Hence the kernel satisfies detailed balance w.r.t. π
+    restricted to the valid space.
 
     Returns (new_assignment, accepted_bool).
     """
+    if ideal_pop is None:
+        raise ValueError(
+            "qp_mh_proposal requires ideal_pop (the global per-district "
+            "ideal): anchoring the balance window to the merged-pair "
+            "half provably breaks detailed balance (a valid state can "
+            "fail its own pair's local window, zeroing the reverse "
+            "probability of a positive-probability forward move).")
+
     bp_cur   = border_pairs_set(assignment, graph)
     n_bp_cur = len(bp_cur)
     if n_bp_cur == 0:
@@ -298,18 +363,25 @@ def qp_mh_proposal(graph, assignment,
     d1_id, d2_id = random.choice(sorted(bp_cur))
     nodes        = [n for n, d in assignment.items() if d in (d1_id, d2_id)]
 
-    # Forward QP + randomized round
-    x_star_fwd = _solve_qp(graph, nodes, assignment, d1_id, alpha, beta, epsilon)
+    # Forward QP + single-shot randomized round.  NOTE: kernel_fn must
+    # be deterministic in (graph, u, v) — any stochastic kernel (or
+    # weight_jitter) breaks the detailed-balance argument.
+    x_star_fwd = _solve_qp(graph, nodes, assignment, d1_id, alpha, beta,
+                           epsilon, kernel_fn=kernel_fn, ideal_pop=ideal_pop)
     if x_star_fwd is None:
         return dict(assignment), False
 
     proposed, log_q_fwd, _ = _randomized_round(
         x_star_fwd, nodes, d1_id, d2_id, graph, assignment)
-    if proposed is None:
+
+    # π(proposed) = 0 outside the valid space → certain rejection.
+    if not _pair_split_feasible(proposed, nodes, d1_id, d2_id, graph,
+                                epsilon, ideal_pop=ideal_pop):
         return dict(assignment), False
 
-    # Reverse QP (exact MH ratio)
-    x_star_rev = _solve_qp(graph, nodes, proposed, d1_id, alpha, beta, epsilon)
+    # Reverse QP (deterministic given proposed state and same pair)
+    x_star_rev = _solve_qp(graph, nodes, proposed, d1_id, alpha, beta,
+                           epsilon, kernel_fn=kernel_fn, ideal_pop=ideal_pop)
     if x_star_rev is None:
         return dict(assignment), False
 
@@ -339,11 +411,34 @@ def qp_mh_proposal(graph, assignment,
 # QP diffusion step  (notes-aligned: L_sym + threshold rounding + repair)
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _balance_bounds(pop_total, epsilon, ideal_pop=None):
+    """Feasible interval for one side's population.
+
+    With `ideal_pop` (global per-district ideal p(V)/k) the constraint is
+    the one that actually defines plan validity:
+        (1−ε)·ideal ≤ pop(side1) ≤ (1+ε)·ideal   AND
+        (1−ε)·ideal ≤ pop(side2) ≤ (1+ε)·ideal,
+    i.e. pop(side1) ∈ [max((1−ε)·ideal, pop_H − (1+ε)·ideal),
+                       min((1+ε)·ideal, pop_H − (1−ε)·ideal)].
+
+    Legacy fallback (ideal_pop=None): (1±ε)·pop_H/2, which only bounds the
+    LOCAL split and lets district populations ratchet outside the global
+    tolerance over repeated moves on heterogeneous graphs.
+    """
+    if ideal_pop is None:
+        p_bar = pop_total / 2.0
+        return (1 - epsilon) * p_bar, (1 + epsilon) * p_bar
+    lo = max((1 - epsilon) * ideal_pop, pop_total - (1 + epsilon) * ideal_pop)
+    hi = min((1 + epsilon) * ideal_pop, pop_total - (1 - epsilon) * ideal_pop)
+    return lo, hi
+
+
 def _solve_qp_sym(graph, nodes, assignment, d1_id,
                   alpha=1.0, beta=1.0, epsilon=0.05, attr="density",
-                  normalize=True, kernel_fn=None, weight_jitter=False):
+                  normalize=True, kernel_fn=None, weight_jitter=False,
+                  ideal_pop=None):
     """Solve  min α·xᵀL x + β·‖x − x₀‖²
-              s.t. (1−ε)·p̄ ≤ pᵀx ≤ (1+ε)·p̄,  x ∈ [0,1]^n.
+              s.t. balance bounds (see _balance_bounds),  x ∈ [0,1]^n.
 
     L is the (un)normalised Laplacian on the merged pair, with edge
     weights from `kernel_fn(graph, u, v)` if provided, else from
@@ -361,11 +456,13 @@ def _solve_qp_sym(graph, nodes, assignment, d1_id,
                                weight_jitter=weight_jitter)
     x0     = np.array([1.0 if assignment[v] == d1_id else 0.0 for v in nodes])
     pop    = np.array([graph.nodes[v]["population"] for v in nodes])
-    p_bar  = pop.sum() / 2.0
+    pop_lo, pop_hi = _balance_bounds(pop.sum(), epsilon, ideal_pop)
+    if pop_lo > pop_hi:
+        return None
 
+    m = None
     try:
-        m = gp.Model("qp_sym")
-        m.setParam("OutputFlag", 0)
+        m = gp.Model("qp_sym", env=_grb_env())
         x = m.addVars(n, lb=0.0, ub=1.0, name="x")
 
         obj = gp.QuadExpr()
@@ -382,19 +479,23 @@ def _solve_qp_sym(graph, nodes, assignment, d1_id,
 
         m.setObjective(obj, GRB.MINIMIZE)
         pe = gp.LinExpr(pop.tolist(), [x[i] for i in range(n)])
-        m.addConstr(pe >= (1 - epsilon) * p_bar)
-        m.addConstr(pe <= (1 + epsilon) * p_bar)
+        m.addConstr(pe >= pop_lo)
+        m.addConstr(pe <= pop_hi)
         m.optimize()
 
         if m.Status in (GRB.OPTIMAL, GRB.SUBOPTIMAL):
             return np.array([x[i].X for i in range(n)])
     except gp.GurobiError:
         pass
+    finally:
+        if m is not None:
+            m.dispose()
     return None
 
 
 def _cheeger_sweep_round(x_star, nodes, d1_id, d2_id,
-                         graph, assignment, epsilon, repair=True):
+                         graph, assignment, epsilon, repair=True,
+                         ideal_pop=None):
     """Cheeger sweep: among all sorted-x_star thresholds, return the
     assignment minimising cut on the merged pair subject to ε balance.
 
@@ -410,9 +511,9 @@ def _cheeger_sweep_round(x_star, nodes, d1_id, d2_id,
     """
     n   = len(nodes)
     pop = np.array([graph.nodes[v]["population"] for v in nodes])
-    p_bar = pop.sum() / 2.0
-    pop_lo = (1 - epsilon) * p_bar
-    pop_hi = (1 + epsilon) * p_bar
+    pop_lo, pop_hi = _balance_bounds(pop.sum(), epsilon, ideal_pop)
+    if pop_lo > pop_hi:
+        return None
 
     order = np.argsort(-x_star, kind="stable")
     pop_cum = np.cumsum(pop[order])
@@ -443,7 +544,8 @@ def _cheeger_sweep_round(x_star, nodes, d1_id, d2_id,
             if not repair:
                 continue
             cand_asn = _orphan_flip_repair(
-                cand_asn, nodes, d1_id, d2_id, graph, epsilon)
+                cand_asn, nodes, d1_id, d2_id, graph, epsilon,
+                ideal_pop=ideal_pop)
             if cand_asn is None:
                 continue
 
@@ -458,7 +560,8 @@ def _cheeger_sweep_round(x_star, nodes, d1_id, d2_id,
     return best_asn
 
 
-def _orphan_flip_repair(new_asn, nodes, d1_id, d2_id, graph, epsilon):
+def _orphan_flip_repair(new_asn, nodes, d1_id, d2_id, graph, epsilon,
+                        ideal_pop=None):
     """Orphan-flip contiguity repair: for each side, keep the largest
     connected component and flip smaller components to the opposite
     side.  Returns repaired assignment if both sides end up connected
@@ -468,7 +571,7 @@ def _orphan_flip_repair(new_asn, nodes, d1_id, d2_id, graph, epsilon):
     via its rounding fallback).
     """
     pop_total = sum(graph.nodes[v]["population"] for v in nodes)
-    p_bar = pop_total / 2.0
+    pop_lo, pop_hi = _balance_bounds(pop_total, epsilon, ideal_pop)
 
     for d_id, opp in ((d1_id, d2_id), (d2_id, d1_id)):
         side = [v for v in nodes if new_asn[v] == d_id]
@@ -492,14 +595,14 @@ def _orphan_flip_repair(new_asn, nodes, d1_id, d2_id, graph, epsilon):
         return None
 
     pop1 = sum(graph.nodes[v]["population"] for v in nodes1)
-    if not ((1 - epsilon) * p_bar <= pop1 <= (1 + epsilon) * p_bar):
+    if not (pop_lo <= pop1 <= pop_hi):
         return None
     return new_asn
 
 
 def _threshold_round_and_repair(x_star, nodes, d1_id, d2_id,
                                 graph, assignment, epsilon,
-                                threshold="cheeger"):
+                                threshold="cheeger", ideal_pop=None):
     """Round x_star and ensure (ε balance, connectivity).
 
     threshold:
@@ -514,7 +617,8 @@ def _threshold_round_and_repair(x_star, nodes, d1_id, d2_id,
     """
     if threshold == "cheeger":
         result = _cheeger_sweep_round(
-            x_star, nodes, d1_id, d2_id, graph, assignment, epsilon)
+            x_star, nodes, d1_id, d2_id, graph, assignment, epsilon,
+            ideal_pop=ideal_pop)
         if result is not None:
             return result
         threshold = "balance"  # fallback
@@ -562,8 +666,9 @@ def _threshold_round_and_repair(x_star, nodes, d1_id, d2_id,
     if not nx.is_connected(graph.subgraph(nodes2)):
         return None
 
+    pop_lo, pop_hi = _balance_bounds(pop.sum(), epsilon, ideal_pop)
     pop1 = sum(graph.nodes[v]["population"] for v in nodes1)
-    if not ((1 - epsilon) * p_bar <= pop1 <= (1 + epsilon) * p_bar):
+    if not (pop_lo <= pop1 <= pop_hi):
         return None
 
     return new_asn
@@ -572,7 +677,8 @@ def _threshold_round_and_repair(x_star, nodes, d1_id, d2_id,
 def qp_diffusion_step(graph, assignment, alpha=1.0, beta=1.0,
                       epsilon=0.05, threshold="median", attr="density",
                       normalize=True, kernel_fn=None,
-                      weight_jitter=False, forbid_pairs=None):
+                      weight_jitter=False, forbid_pairs=None,
+                      ideal_pop=None):
     """One QP-diffusion proposal step.
 
     Pipeline (matching notes Algorithm 2 + §4.3):
@@ -599,13 +705,14 @@ def qp_diffusion_step(graph, assignment, alpha=1.0, beta=1.0,
                            alpha=alpha, beta=beta, epsilon=epsilon,
                            attr=attr, normalize=normalize,
                            kernel_fn=kernel_fn,
-                           weight_jitter=weight_jitter)
+                           weight_jitter=weight_jitter,
+                           ideal_pop=ideal_pop)
     if x_star is None:
         return dict(assignment), False, chosen_pair
 
     new_asn = _threshold_round_and_repair(
         x_star, nodes, d1_id, d2_id, graph, assignment, epsilon,
-        threshold=threshold,
+        threshold=threshold, ideal_pop=ideal_pop,
     )
     if new_asn is None:
         return dict(assignment), False, chosen_pair
@@ -618,7 +725,7 @@ def qp_diffusion_step(graph, assignment, alpha=1.0, beta=1.0,
 # ─────────────────────────────────────────────────────────────────────────────
 
 def spec_recom_step(graph, assignment, epsilon=0.05, attr="density",
-                    normalize=False):
+                    normalize=False, ideal_pop=None):
     """SpecReCom step (Davies, Job, Kampbell, Kim, Seo 2025).
 
     Faithful to Algorithm 2 of the SpecReCom paper: pick a random
@@ -663,7 +770,7 @@ def spec_recom_step(graph, assignment, epsilon=0.05, attr="density",
     # tends to accept lower-quality cuts on average without that anchor.
     new_asn = _cheeger_sweep_round(
         phi, nodes, d1_id, d2_id, graph, assignment, epsilon,
-        repair=False)
+        repair=False, ideal_pop=ideal_pop)
     if new_asn is None:
         return dict(assignment), False
     return new_asn, True
@@ -677,7 +784,7 @@ def iqp_local_step(graph, assignment, alpha=1.0, beta=1.0,
                    epsilon=0.05, attr="density",
                    normalize=False, kernel_fn=None,
                    time_limit=5.0, weight_jitter=False,
-                   forbid_pairs=None):
+                   forbid_pairs=None, ideal_pop=None):
     """Integer-domain version of the continuous QP-diffusion model.
 
     Solves
@@ -718,11 +825,13 @@ def iqp_local_step(graph, assignment, alpha=1.0, beta=1.0,
 
     x0 = np.array([1.0 if assignment[v] == d1_id else 0.0 for v in nodes])
     pop = np.array([graph.nodes[v]["population"] for v in nodes])
-    p_bar = pop.sum() / 2.0
+    pop_lo, pop_hi = _balance_bounds(pop.sum(), epsilon, ideal_pop)
+    if pop_lo > pop_hi:
+        return dict(assignment), False, chosen_pair
 
+    m = None
     try:
-        m = gp.Model("iqp")
-        m.setParam("OutputFlag", 0)
+        m = gp.Model("iqp", env=_grb_env())
         m.setParam("TimeLimit", time_limit)
 
         x = m.addVars(n, vtype=GRB.BINARY, name="x")
@@ -741,23 +850,27 @@ def iqp_local_step(graph, assignment, alpha=1.0, beta=1.0,
 
         m.setObjective(obj, GRB.MINIMIZE)
         pe = gp.LinExpr(pop.tolist(), [x[i] for i in range(n)])
-        m.addConstr(pe >= (1 - epsilon) * p_bar)
-        m.addConstr(pe <= (1 + epsilon) * p_bar)
+        m.addConstr(pe >= pop_lo)
+        m.addConstr(pe <= pop_hi)
         m.optimize()
 
         if m.Status not in (GRB.OPTIMAL, GRB.SUBOPTIMAL, GRB.TIME_LIMIT):
             return dict(assignment), False, chosen_pair
         if m.SolCount == 0:
             return dict(assignment), False, chosen_pair
+        xvals = [x[i].X for i in range(n)]
     except gp.GurobiError:
         return dict(assignment), False, chosen_pair
+    finally:
+        if m is not None:
+            m.dispose()
 
     new_asn = dict(assignment)
     for i, v in enumerate(nodes):
-        new_asn[v] = d1_id if x[i].X > 0.5 else d2_id
+        new_asn[v] = d1_id if xvals[i] > 0.5 else d2_id
 
     repaired = _orphan_flip_repair(new_asn, nodes, d1_id, d2_id,
-                                   graph, epsilon)
+                                   graph, epsilon, ideal_pop=ideal_pop)
     if repaired is None:
         return dict(assignment), False, chosen_pair
     return repaired, True, chosen_pair
