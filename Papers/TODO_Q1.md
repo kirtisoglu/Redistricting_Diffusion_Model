@@ -437,10 +437,10 @@ reports the p it used.
 | pi | density | 42 | | | | |
 | pi | perimeter | 43 | | | | |
 | pi | density | 43 | | | | |
-| tree | perimeter | 42 | | | | |
-| tree | density | 42 | | | | |
-| tree | perimeter | 43 | | | | |
-| tree | density | 43 | | | | |
+| tree | perimeter | 42 | 43.92 | 37.40 | 0.85 | yes (13.05 13.05 13.05 13.02 vs 13.03 13.04 13.02 13.05) |
+| tree | density | 42 | 32.27 | 29.14 | 0.90 | yes (7.30 7.30 7.29 7.32 vs 7.31 7.28 7.27 7.29) |
+| tree | perimeter | 43 | 44.14 | 35.83 | 0.81 | yes (13.01 13.02 13.05 13.07 vs 13.03 13.04 13.02 13.07) |
+| tree | density | 43 | 33.87 | 29.23 | 0.86 | yes (7.30 7.30 7.27 7.30 vs 7.27 7.29 7.28 7.29) |
 | pi, p=0.3 | perimeter | 42 | | | | |
 | pi, p=0.3 | density | 42 | | | | |
 | pi, p=0.3 | perimeter | 43 | | | | |
@@ -448,7 +448,19 @@ reports the p it used.
 
 Verdict under pi:
 
-Reading of the tree-weighted rows:
+Reading of the tree-weighted rows: decided, 2026-10-21, from the four
+500,000-step runs (`forest_iowa_long_{forest,hybrid}_seed{42,43}_tree.npz`,
+hybrid at p = 0.1). The local move is a passenger under the
+tree-weighted target: ratios 0.81 to 0.90, with ESS of 20,000 to 27,000
+per chain so the ratios are tight, and quarter means matching to the
+second decimal. Per step the hybrid is also slightly worse (0.052 to
+0.055 effective samples per step against 0.060 for the forest move on
+perimeter, 0.044 against 0.048 to 0.051 on density), so a local step
+contributes less decorrelation than the forest step it replaces, before
+any cost is counted. Acceptance: forest 0.66 to 0.73, local 0.72 to
+0.84. This is the hardest fair test for the local kernel, and it fails
+it cleanly, as the mechanism of fact 2 predicts: on the tree move's own
+measure there is nothing for a local move to add.
 
 ## Items still open from the previous version of this file
 
