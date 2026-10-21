@@ -1,0 +1,1884 @@
+% MIRROR COPY. The canonical source of this paper lives in
+% ~/GitHub/fiber-collapsed-mcmc/paper/balanced_fiber_gibbs.tex
+% (git-tracked, with the verification suite). Edit there and re-copy.
+\documentclass[11pt]{article}
+
+\usepackage{amssymb,amsmath,amsfonts,amsthm}
+\usepackage{lmodern}
+\usepackage{xcolor}
+\usepackage[colorlinks=true]{hyperref}
+\definecolor{cieblue}{RGB}{31, 119, 180}
+\hypersetup{citecolor=cieblue, allcolors=cieblue}
+\usepackage{enumerate}
+
+\setlength{\textwidth}{15.5cm}
+\setlength{\textheight}{22cm}
+\setlength{\oddsidemargin}{0.25cm}
+\setlength{\evensidemargin}{0.25cm}
+\setlength{\topmargin}{0cm}
+
+% ---------- status annotations (REMOVE BEFORE SUBMISSION) ----------
+\definecolor{donecol}{RGB}{0,110,90}
+\definecolor{misscol}{RGB}{170,20,20}
+\definecolor{notecol}{RGB}{30,60,170}
+\newcommand{\done}[1]{\medskip\noindent\textcolor{donecol}{\textbf{[DONE]} \emph{#1}}\medskip}
+\newcommand{\missing}[1]{\medskip\noindent\textcolor{misscol}{\textbf{[MISSING]} \emph{#1}}\medskip}
+\newcommand{\statusnote}[1]{\medskip\noindent\textcolor{notecol}{\textbf{[NOTE]} \emph{#1}}\medskip}
+% -------------------------------------------------------------------
+
+\newcommand{\Z}{\mathbb{Z}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\PicO}[1]{\operatorname{Pic}^0(#1)}
+\newcommand{\Pick}[1]{\operatorname{Pic}_k(#1)}
+\newcommand{\im}{\operatorname{im}}
+\newcommand{\tv}[1]{\left\lVert #1 \right\rVert_{\mathrm{TV}}}
+\newcommand{\Tcal}{\mathcal{T}}
+\newcommand{\Fcal}{\mathcal{F}}
+\newcommand{\Bcal}{\mathcal{B}}
+
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{corollary}[theorem]{Corollary}
+\newtheorem{conjecture}[theorem]{Conjecture}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{remark}[theorem]{Remark}
+\newtheorem{fact}[theorem]{Fact}
+
+\title{A Multi-Sink Sandpile Torsor and Fiber-Collapsed Markov Chains\\
+for Sampling Balanced Graph Partitions\\
+{\large \textcolor{misscol}{WORKING DRAFT, July 2026 (see the Status appendix)}}}
+\author{Alaittin K\i rt\i \c{s}o\u{g}lu\thanks{Department of Applied
+Mathematics, Illinois Institute of Technology.}}
+\date{July 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Sampling connected, population-balanced $k$-partitions of a graph, the
+mathematical core of political redistricting analysis, currently rests on
+Markov chains with no known mixing-time bounds; rigorous guarantees exist only
+for \emph{unconstrained} spanning-forest walks. We make three contributions
+toward closing this gap. First, we develop the algebraic infrastructure of
+balanced-forest chains. We prove that the lattice quotient
+$\Pick{G} = \Z^{|V|-k}/\im \Delta^{(S)}$ attached to a root set $S$ of size $k$
+is the sandpile group of the graph $G_S$ obtained by identifying $S$ to a
+single sink, that spanning $k$-forests of $G$ rooted at $S$ are exactly the
+spanning trees of $G_S$, and hence, by rotor-routing on $G_S$, that
+$\Pick{G}$ acts freely and transitively on rooted $k$-forests of any graph.
+This yields exact (Markov-chain-free) uniform sampling of rooted $k$-forests
+and, via the quotient multigraph $Q_\xi$, an \emph{exact within-fiber
+resampler} for the set of forests or trees compatible with a fixed partition
+$\xi$. Second, we prove a \emph{fiber collapse lemma}. A chain that
+alternates exact fiber resampling with an arbitrary reversible
+partition-changing kernel mixes \emph{exactly} as fast as its projection
+onto partition space; the within-fiber coordinate contributes nothing to
+the mixing time. This eliminates, provably and by construction, one of the two
+sources of slow mixing in all existing redistricting chains, and reduces the
+open problem of balanced-chain mixing to a spectral gap estimate for a
+projected chain on partitions alone. Third, on $2 \times n$ strips we
+complete the program. We classify the balanced connected partitions of the strip
+exactly for every $k$, by an interface coding with $\Theta_k(n^{k-1})$
+states whose stationary law concentrates exponentially on narrow
+interfaces. We prove that the projected window-resampling chain is
+irreducible for every $k$, that every merged window splits with
+probability at least $1/10$, and, by a two-phase coupling driven by the
+concentration, that the full chain mixes. For every fixed $k$, the
+fiber-Gibbs chain on balanced $k$-forests of the $2 \times n$ strip
+mixes in $O(k \log k)$ steps, so an approximately uniform sample costs
+near-linear time. To our knowledge this is the first polynomial
+mixing-time bound for a Markov chain supported on balanced connected
+partitions. Exact diagonalization shows that the projected spectral gap
+is in fact $1/(k-1)$ asymptotically, independent of $n$. What remains
+open on two-dimensional grids is stated as a precise conjecture.
+\end{abstract}
+
+\statusnote{This draft merges the ``Tier 2'' package (torsor infrastructure,
+exact fiber resampling, irreducibility) with the ``Tier 1'' target (first
+mixing bound for a balance-restricted chain). Everything labeled DONE has a
+complete proof in this file or a precise citation. Everything labeled
+MISSING is work to do; each MISSING box says exactly what is needed. The
+ledger in Appendix~\ref{app:status} lists all of them in one table. Remove
+all colored boxes, this note, and Appendix~\ref{app:status} before
+submission.}
+
+\tableofcontents
+
+%═══════════════════════════════════════════════════════════════════════════════
+\section{Introduction}
+%═══════════════════════════════════════════════════════════════════════════════
+
+Let $G = (V, E)$ be a connected graph with $n = |V|$ vertices and $m = |E|$
+edges, and let $k \ge 2$. A \emph{connected $k$-partition} of $G$ is a
+partition $\xi = \{\xi_1, \ldots, \xi_k\}$ of $V$ into $k$ nonempty classes
+(\emph{districts}), each inducing a connected subgraph. A partition is
+\emph{$\varepsilon$-balanced} if every district's size (more generally,
+vertex-weighted population) lies within a factor $(1 \pm \varepsilon)$ of
+$n/k$. The central algorithmic problem of quantitative redistricting analysis
+is to sample from a prescribed distribution on balanced connected
+$k$-partitions, most prominently the \emph{spanning tree distribution}
+\[
+  \pi_{\mathrm{sp}}(\xi) \;\propto\; \prod_{i=1}^{k} t(G[\xi_i]),
+\]
+where $t(H)$ denotes the number of spanning trees of $H$, which arises as the
+projection of the uniform distribution on $k$-component spanning forests.
+Chains in practical use (recombination~\cite{deford2021recom}, its
+reversible forest variants~\cite{autry2020multiscale, charikar2023complexity},
+the cycle walk~\cite{deford2025cycle}, the marked edge walk~\cite{mew}, and
+the balanced up-down walk~\cite{akitaya2026bud}) are supported by
+increasingly strong irreducibility theorems and extensive experiments, but
+\emph{no polynomial mixing-time bound is known for any Markov chain whose
+state space is the balanced set}, on any nontrivial graph family. The only
+rigorous mixing results in the area concern \emph{unconstrained} forest
+walks: the up-down walk on the rank-$(n-k)$ truncation of the graphic matroid
+mixes in $O(m \log m)$ steps on every
+graph~\cite{anari2021logconcave}, and Cannon, Pegden, and
+Tucker-Foltz~\cite{cannon2024balanced} showed that on $m \times n$ grids the
+balanced states occupy a $1/\mathrm{poly}$ fraction of the unconstrained
+space, so that rejection from the unconstrained sampler runs in expected
+polynomial time. Whether a chain \emph{living inside} the balanced set can be
+proved to mix rapidly is open; it is stated as the outstanding problem
+in~\cite{deford2025cycle, akitaya2026bud, cannon2024balanced}. This paper
+resolves it for $2 \times n$ strips, for every fixed number of
+districts.
+
+Every chain on balanced forests suffers from two distinct sources of slow
+mixing, and existing analyses cannot separate them:
+\begin{enumerate}[(S1)]
+  \item \textbf{within-fiber shuffling:} states carrying the same partition
+    $\xi$ (differing in within-district trees, or in which boundary edges the
+    spanning structure uses) must be mixed among themselves; empirically this
+    consumes the majority of the steps of tree-based
+    chains~\cite{mew, deford2025cycle};
+  \item \textbf{partition-space geometry:} the projected walk on balanced
+    partitions themselves must overcome the combinatorial geometry of the
+    balanced set, the genuinely hard part, where torpidity examples
+    exist~\cite{charikar2023complexity} and irreducibility can even
+    fail~\cite{akitaya2026bud}.
+\end{enumerate}
+
+\paragraph{Contributions.} This paper removes (S1) \emph{exactly}, by
+algebraic means, and isolates (S2) as a clean projected-chain problem.
+
+\begin{enumerate}[(C1)]
+  \item \textbf{A multi-sink sandpile torsor
+    (Theorem~\ref{thm:torsor}).} For any root set
+    $S = \{q_1, \ldots, q_k\} \subseteq V$, the lattice quotient
+    $\Pick{G} := \Z^{n-k} / \im \Delta^{(S)}$ is canonically the sandpile
+    (Picard) group of the multigraph $G_S$ obtained by identifying $S$ to a
+    single sink; spanning $k$-forests of $G$ rooted at $S$ are exactly the
+    spanning trees of $G_S$; and rotor-routing on $G_S$ makes the set of
+    rooted $k$-forests a \emph{torsor} (free transitive action) for
+    $\Pick{G}$, on every connected graph, with no planarity hypothesis.
+    Consequences: exact uniform sampling of rooted $k$-forests by Wilson's
+    algorithm on $G_S$ (no Markov chain, no mixing bound), a multi-sink
+    Dhar burning algorithm, and polynomial-time navigation of forest space.
+  \item \textbf{Exact fiber resampling
+    (Theorem~\ref{thm:fiber-decomp}, Proposition~\ref{prop:resampler}).}
+    The set of spanning trees compatible with a fixed partition $\xi$
+    factorizes as
+    $\prod_i \Tcal(G[\xi_i]) \times \Tcal(Q_\xi)$, where $Q_\xi$ is the
+    quotient multigraph; both factors admit exact uniform samplers (Wilson
+    within districts; Wilson or the $\PicO{Q_\xi}$-torsor on the quotient).
+    This gives a polynomial-time \emph{exact} sampler of the conditional
+    distribution given $\xi$, for both forest-valued and tree-valued state
+    spaces.
+  \item \textbf{The fiber collapse lemma (Lemma~\ref{lem:collapse},
+    Theorem~\ref{thm:conditional}).} If a chain alternates the exact fiber
+    resampler with an arbitrary $\pi$-reversible partition-changing kernel
+    $P_M$, then the induced partition process is itself Markov, the joint
+    chain's distance to stationarity \emph{equals} that of the projected
+    chain, and the spectrum of the joint kernel is the spectrum of the
+    projected kernel together with $0$. With exact fiber resampling,
+    the mixing problem for balanced forests \emph{is} the mixing problem
+    for balanced partitions, and (S1) is gone.
+  \item \textbf{The first mixing bound for a balanced-partition chain
+    (Section~\ref{sec:targets}).} On $2 \times n$ strips we classify the
+    balanced partitions exactly for every $k$
+    (Proposition~\ref{prop:strip-classify-k}), prove irreducibility of
+    the projected window-resampling chain for every $k$
+    (Corollary~\ref{cor:strip-irred}), and prove that the fiber-Gibbs
+    chain mixes in $O(k \log k)$ steps
+    (Corollary~\ref{cor:strip-mixing}). The collapse lemma reduces the
+    problem to a heat-bath interface chain, which a concentration-driven
+    coupling mixes in two sweeps.
+    Irreducibility on rectangles (Conjecture~\ref{conj:irred}) and mixing
+    on two-dimensional grids remain open.
+  \item \textbf{Machine verification (Section~\ref{sec:computation}).} All
+    algebraic results were verified exhaustively on small graphs, including
+    the torsor axioms on multigraph quotients, and we report an exhaustive
+    irreducibility computation for a boundary-restricted chain on the
+    $3 \times 3$ grid. We also report a computation showing that partition
+    fibers are \emph{not} cosets of subgroups of $\Pick{G}$, evidence that
+    the collapse route of (C3), rather than a group-theoretic treatment of
+    balance, is the right division of labor.
+\end{enumerate}
+
+\done{The introduction is essentially complete; the related-work paragraphs
+below may need expansion after the missing results stabilize.}
+
+\subsection{Overview of the argument}
+\label{subsec:story}
+
+Sampling a balanced districting plan amounts to running a random walk
+on the balanced $k$-forests of a graph. Two separate effects slow every
+walk of this kind. Forests that induce the same district map differ in
+their within-district trees, and a walk spends most of its steps
+reshuffling those trees. Beyond that, the walk has to move between maps,
+and the geometry of the balanced maps may itself be difficult to cross.
+
+We treat the two effects separately. The first is removed exactly.
+Within a fixed map the within-district trees correspond to the spanning
+trees of the graph obtained by collapsing each district to a point, and
+the sandpile group of the collapsed graph acts on them freely and
+transitively (Sections~\ref{sec:torsor} and~\ref{sec:fiber}). The
+hidden part of the state can therefore be redrawn exactly, in one step,
+by Wilson's algorithm. The fiber collapse lemma of
+Section~\ref{sec:collapse} shows that a chain which redraws the hidden
+part exactly mixes precisely as fast as its projection onto maps, so
+the entire problem reduces to the projected walk.
+
+We then analyze the projected walk in a setting where it can be
+understood completely, the $2 \times n$ strip. A balanced map of the
+strip is described by the widths of the $k-1$ interfaces between
+consecutive districts, and the target distribution favors narrow
+interfaces, at a cost of roughly $\lambda = 2 + \sqrt3$ per additional
+cell of width (Section~\ref{subsec:strips}). Redrawing one interface is
+consequently a heavily biased draw, and two coupled copies of the walk
+agree after each interface has been redrawn twice
+(Section~\ref{subsec:coupling}). This yields the first Markov chain on
+balanced partitions with a proven polynomial mixing time
+(Corollary~\ref{cor:strip-mixing}). Square grids remain open, and
+Section~\ref{sec:computation} records the estimates a two-dimensional
+proof would require.
+
+\subsection{Related work}
+
+Torsor structures of the sandpile group on \emph{spanning trees} originate
+with rotor-routing~\cite{holroyd2008chip} and the Bernardi
+process~\cite{baker2018bernardi}; on plane graphs the two coincide and are
+canonical~\cite{baker2018bernardi, chan2015rotor}, and rotor-routing is the
+\emph{only} consistent torsor algorithm there~\cite{ganguly2023rotor}. Off
+planarity both actions depend on the base data~\cite{shokrieh2021torsor}.
+Our Theorem~\ref{thm:torsor} is a reduction to~\cite{holroyd2008chip}; its
+value is the systematic transfer of the tree-level theory to rooted
+$k$-forests and the resulting samplers. On the redistricting side, the
+irreducibility state of the art is~\cite{akitaya2026bud} (exact balance,
+$k = 2$, simple grid graphs, and triomino districts on rectangles); the
+mixing state of the art for unconstrained forests
+is~\cite{anari2021logconcave}; balanced sampling on grids by rejection
+is~\cite{cannon2024balanced}; and the enumerative structure of balanced
+trees of $2 \times n$ strips is~\cite{gallagher2025balanced}. The
+decomposition method for Markov chains goes back
+to~\cite{madras2002decomposition}; our Lemma~\ref{lem:collapse} is the
+degenerate (and, for our purposes, optimal) case in which the
+restriction chains are exact resamplers, so that the decomposition becomes an
+identity rather than an inequality.
+
+%═══════════════════════════════════════════════════════════════════════════════
+\section{Preliminaries}
+\label{sec:prelim}
+%═══════════════════════════════════════════════════════════════════════════════
+
+A handful of symbols carry the paper. In
+Sections~\ref{sec:torsor}--\ref{sec:collapse}, $G$ is any connected
+graph and $n = |V|$. In the strip sections the graph is the
+$2 \times n$ grid, whose $2n$ cells form $k$ districts of $s = 2n/k$
+cells each. Throughout, $t(H)$ is the number of spanning trees of $H$,
+and $\lambda = 2 + \sqrt 3$ is the growth rate of $t$ on strips.
+Everything else is introduced where it is first used.
+
+\subsection{Graphs, forests, partitions}
+
+All graphs are finite and connected; multigraphs (parallel edges) are allowed
+and arise naturally as quotients; loops are deleted whenever they arise. For
+$U \subseteq V$, $G[U]$ is the induced subgraph. A \emph{spanning
+$k$-forest} is an acyclic edge set $F \subseteq E$ with exactly $k$
+connected components whose vertex classes we denote $\xi(F) = \{\xi_1,
+\ldots, \xi_k\}$; then $|F| = n - k$ and every $\xi_i$ induces a connected
+subgraph, so $\xi(F)$ is a connected $k$-partition. Conversely the set of
+$k$-forests inducing a fixed $\xi$ is $\prod_i \Tcal(G[\xi_i])$, where
+$\Tcal(H)$ denotes the set of spanning trees of $H$; hence the uniform
+distribution on $k$-forests projects to $\pi_{\mathrm{sp}}(\xi) \propto
+\prod_i t(G[\xi_i])$ on connected $k$-partitions.
+
+Given a connected $k$-partition $\xi$, the \emph{quotient multigraph}
+$Q_\xi$ has one vertex per district and one edge per \emph{boundary edge} of
+$G$ (an edge with endpoints in two different districts), with multiplicities
+retained. A spanning tree $T \in \Tcal(G)$ is \emph{compatible} with $\xi$
+if $T \cap E(G[\xi_i])$ is a spanning tree of $G[\xi_i]$ for every $i$; in
+that case $T$ contains exactly $k-1$ boundary edges and these project to a
+spanning tree of $Q_\xi$.
+
+Fix a nonnegative vertex weight (population) $p : V \to \R_{\ge 0}$, with
+$p \equiv 1$ unless stated otherwise, and $\bar{p} = p(V)/k$. A connected
+$k$-partition is \emph{$\varepsilon$-balanced} if
+$|p(\xi_i) - \bar{p}| \le \varepsilon \bar{p}$ for all $i$; ``exact
+balance'' is $\varepsilon = 0$. Write $\Bcal_k^\varepsilon(G)$ for the set
+of $\varepsilon$-balanced connected $k$-partitions and
+$\Fcal_k^\varepsilon(G)$ for the set of $k$-forests $F$ with
+$\xi(F) \in \Bcal_k^\varepsilon(G)$.
+
+\subsection{Divisors, the Picard group, and reduced Laplacians}
+
+$\operatorname{Div}(G) = \Z^V$ is the group of \emph{divisors} (chip
+configurations); $\Delta_G$ is the graph Laplacian, acting on $\Z^V$ with
+$\Delta_G(v,v) = \deg v$ and $\Delta_G(u,v) = -(\text{\# edges } uv)$.
+Divisors $D \sim D'$ are \emph{linearly equivalent} if
+$D - D' \in \im \Delta_G$. The \emph{Picard (sandpile, critical) group} of a
+connected multigraph $H$ is
+$\PicO{H} = \operatorname{Div}^0(H) / \im \Delta_H$, where
+$\operatorname{Div}^0$ is the degree-zero subgroup; by the matrix-tree
+theorem $|\PicO{H}| = t(H)$. For $W \subseteq V$ the matrix $\Delta^{(W)}$
+is $\Delta_G$ with the rows and columns of $W$ deleted. The
+\emph{Matrix-Forest theorem} (principal-minors form; see
+\cite{chebotarev2006forest}) states that for $|W| = k$,
+\[
+\begin{gathered}
+  \det \Delta^{(W)}
+    \;=\; \#\bigl\{\text{spanning $k$-forests of $G$ in which} \\
+    \text{each component contains exactly one vertex of } W\bigr\}.
+\end{gathered}
+\]
+We call such forests \emph{rooted at $W$} and write $\Fcal_W(G)$ for
+their set. We set
+\[
+  \Pick{G} \;=\; \Z^{n-k} \,/\, \im \Delta^{(S)}
+\]
+for a fixed root set $S$ of size $k$, so $|\Pick{G}| = |\Fcal_S(G)|$.
+
+\subsection{Rotor-routing}
+
+Let $H$ be a connected multigraph with a distinguished \emph{sink} $s$, and
+fix a \emph{ribbon structure}: a cyclic ordering of the edge-ends at each
+vertex. A \emph{rotor configuration} assigns to each non-sink vertex $v$ one
+of its incident edge-ends $\rho(v)$. Adding a chip at $v$ and
+\emph{rotor-routing} means: while the chip is at a non-sink vertex $u$,
+advance $\rho(u)$ to the next incident edge-end in the cyclic order and move
+the chip along that edge; stop when the chip reaches $s$. If the initial
+rotors $\{(v, \rho(v))\}$ form a spanning tree oriented toward $s$, so do the
+final rotors. The fundamental fact we use is:
+
+\begin{fact}[{Holroyd--Levine--M\'esz\'aros--Peres--Propp--Wilson
+\cite{holroyd2008chip}; see also \cite[Thm.~2.18]{ganguly2023rotor}}]
+\label{fact:hlmppw}
+For every connected multigraph $H$ with sink $s$ and every ribbon structure,
+the rule ``add a chip at $v$ and rotor-route to the sink'' induces a
+well-defined action of $\PicO{H}$ on $\Tcal(H)$ which is free and
+transitive.
+\end{fact}
+
+\subsection{Markov chain conventions}
+
+All chains are on finite state spaces. A kernel $P$ is reversible with
+respect to $\pi$ if $\pi(x) P(x,y) = \pi(y) P(y,x)$; then $P$ is
+self-adjoint on $L^2(\pi)$ with real spectrum
+$1 = \lambda_1 \ge \lambda_2 \ge \cdots \ge \lambda_{|\Omega|} \ge -1$. The
+\emph{spectral gap} is $\gamma(P) = 1 - \lambda_2(P)$, and
+$t_{\mathrm{mix}}(P, \epsilon) = \min\{t : \max_{x}
+\tv{P^t(x, \cdot) - \pi} \le \epsilon\}$.
+
+\done{Section~\ref{sec:prelim} is complete and self-contained.}
+
+%═══════════════════════════════════════════════════════════════════════════════
+\section{The multi-sink sandpile torsor}
+\label{sec:torsor}
+%═══════════════════════════════════════════════════════════════════════════════
+
+Throughout this section fix a root set $S = \{q_1, \ldots, q_k\} \subseteq
+V$, $2 \le k < n$. Let $G_S$ be the multigraph obtained from $G$ by
+identifying all vertices of $S$ to a single vertex $s^*$ and deleting the
+loops created by edges with both endpoints in $S$. Edges of $G$ not inside
+$S$ correspond bijectively to edges of $G_S$; we use this identification of
+edge sets silently.
+
+\begin{theorem}[Multi-sink torsor]
+\label{thm:torsor}
+Let $G$ be connected and $S$ as above.
+\begin{enumerate}[(i)]
+  \item $\Delta^{(S)}$ equals the reduced Laplacian of $G_S$ at $s^*$. In
+    particular $\Pick{G} \cong \PicO{G_S}$, an isomorphism of explicitly
+    presented groups (identical integer matrices, hence identical Smith
+    normal forms), and $|\Pick{G}| = t(G_S)$.
+  \item The map $F \mapsto F$ (on edge sets) is a bijection
+    $\Fcal_S(G) \to \Tcal(G_S)$ between spanning $k$-forests of $G$ rooted
+    at $S$ and spanning trees of $G_S$.
+  \item For every ribbon structure on $G_S$, rotor-routing to the sink
+    $s^*$ defines a free and transitive action of $\Pick{G}$ on
+    $\Fcal_S(G)$.
+\end{enumerate}
+\end{theorem}
+
+Informally, rooted $k$-forests of $G$ are the spanning trees of the
+graph obtained by identifying the $k$ roots, and the sandpile group of
+that graph permutes them freely and transitively. A uniform rooted
+forest can therefore be drawn exactly, and no Markov chain is needed.
+
+\begin{proof}
+(i) The vertices of $G_S$ other than $s^*$ are exactly $V \setminus S$. For
+$u, v \in V \setminus S$, identification changes neither the multiplicity of
+edges between $u$ and $v$ nor $\deg u$: every edge from $u$ into $S$ becomes
+an edge from $u$ to $s^*$, and no incident edge of $u$ is deleted (only
+edges inside $S$ become loops). Hence the reduced Laplacian of $G_S$ at
+$s^*$, the matrix indexed by $V \setminus S$ with diagonal $\deg_{G}(u)$
+and off-diagonal $-(\text{\# edges } uv \text{ in } G)$, coincides entry
+by entry with $\Delta^{(S)}$. The group isomorphism and the counting
+consequence follow from the definitions and the matrix-tree theorem for
+multigraphs.
+
+(ii) Let $F \in \Fcal_S(G)$. No edge of $F$ joins two vertices of $S$: such
+an edge would place two roots in one component. Hence $F$ is a well-defined
+edge set of $G_S$. It has $n - k$ edges and $G_S$ has $n - k + 1$ vertices,
+so it suffices to show the image is connected and acyclic. Connected:
+identifying the $k$ roots glues the $k$ component trees of $F$ at the single
+vertex $s^*$. Acyclic: a cycle in the image either avoids $s^*$, lifting to
+a cycle of $F$ in $G$ (impossible), or passes through $s^*$, lifting to a
+path in $F$ between two distinct roots (impossible: distinct roots lie in
+distinct components of $F$).
+
+Conversely let $T \in \Tcal(G_S)$ and let $F$ be the corresponding edge set
+of $G$. $F$ is acyclic: a cycle of $F$ avoiding $S$ maps to a cycle of $T$;
+a path of $F$ between two distinct roots maps to a cycle of $T$ through
+$s^*$; a cycle of $F$ through one root maps to a cycle of $T$. Having
+$n - k$ edges on $n$ vertices, $F$ is a spanning $k$-forest. Every
+$v \in V \setminus S$ is connected in $F$ to some root: the $T$-path from
+$v$ to $s^*$ lifts, edge by edge until its first edge incident to $s^*$, to
+an $F$-path from $v$ to some $q_i$. So each of the $k$ components of $F$
+contains at least one root, and by counting exactly one. The two maps are
+mutually inverse because both are the identity on edge sets.
+
+(iii) Combine (i), (ii), and Fact~\ref{fact:hlmppw} applied to $H = G_S$
+with sink $s^*$.
+\end{proof}
+
+\done{Theorem~\ref{thm:torsor} is fully proved above. It was additionally
+verified by machine (freeness, transitivity, commutativity, and the
+chip-firing relations of the action) on the $2 \times 3$ grid with root sets
+of sizes $2$ and $3$, the $3 \times 3$ grid, and $K_4$ with an adjacent root
+pair, where $G_S$ has parallel edges; see Section~\ref{sec:computation}.}
+
+\begin{remark}[Multi-sink Dhar burning]
+\label{rem:dhar}
+Dhar's burning algorithm on $G_S$ started at $s^*$ is precisely the
+multi-source process on $G$ in which fire spreads simultaneously from all
+$k$ roots; the edges that carry the fire form the rooted $k$-forest, and the
+root whose fire claims a vertex defines a Voronoi-type assignment. All
+recurrence tests and reduced-divisor computations for the $k$-sink sandpile
+on $G$ are ordinary single-sink computations on $G_S$.
+\end{remark}
+
+\begin{remark}[Canonicity caveat]
+\label{rem:canonicity}
+$G_S$ is in general non-planar even when $G$ is planar, so the action of
+Theorem~\ref{thm:torsor}(iii) depends on the ribbon structure and there is
+no canonical choice: off planarity both the rotor and Bernardi torsors are
+base-dependent~\cite{shokrieh2021torsor}, and on plane graphs rotor-routing
+is the \emph{only} consistent torsor algorithm~\cite{ganguly2023rotor}. None
+of the applications below require canonicity.
+\end{remark}
+
+\begin{corollary}[Exact sampling and navigation]
+\label{cor:sampling}
+Fix $S$.
+\begin{enumerate}[(a)]
+  \item Running Wilson's algorithm~\cite{wilson1996generating} on $G_S$
+    rooted at $s^*$ returns a uniformly random element of $\Fcal_S(G)$ in
+    expected time proportional to the mean hitting time of $G_S$ (in
+    particular, expected polynomial time; $O(n \log n)$ on bounded-degree
+    planar graphs such as grid quotients).
+  \item Given the Smith normal form
+    \[ U \Delta^{(S)} V = \operatorname{diag}(d_1, \ldots, d_{n-k}), \]
+    a uniform element of $\Pick{G} \cong \prod_i \Z/d_i$ is sampled by
+    choosing uniform coordinates, and its action on a stored reference
+    forest is evaluated in polynomial time by decomposing a degree-zero
+    representative into elementary chip additions and rotor-routing each
+    chip to the sink.
+\end{enumerate}
+\end{corollary}
+
+\begin{proof}
+(a) is Wilson's theorem applied to $G_S$, using
+Theorem~\ref{thm:torsor}(ii) to transport uniformity. (b) The SNF provides
+the isomorphism and a representative divisor for each coordinate vector; a
+degree-zero divisor $D$ on $G_S$ can be written $D = \sum_v D(v) \bigl((v) -
+(s^*)\bigr)$ with $\sum_v |D(v)|$ bounded polynomially after replacing $D$
+by its $s^*$-reduced representative (computable by Dhar's algorithm in
+polynomial time), and each elementary action $(v) - (s^*)$ is one rotor walk
+of at most $2|E|$ steps by \cite[Prop.~3.3]{ganguly2023rotor} when $v$ is
+adjacent to $s^*$, and at most polynomially many steps in general
+\cite{holroyd2008chip}.
+\end{proof}
+
+\statusnote{Corollary~\ref{cor:sampling}(b) is stated in the safe direction:
+we sample a group element and \emph{apply} it. The inverse problem, that of computing from two forests the unique group
+element carrying one to the other under the rotor action (the torsor discrete
+logarithm), is not needed
+anywhere in this paper. If we later want it for canonical-path
+constructions, the clean route is to use any polynomial-time bijection
+$\Tcal(G_S) \leftrightarrow \PicO{G_S}$ (e.g.\ Dhar's bijection through
+reduced divisors) instead of inverting the rotor action; verify carefully
+which statements need the action itself and which need only \emph{some}
+bijection.}
+
+%═══════════════════════════════════════════════════════════════════════════════
+\section{Fibers and exact fiber resampling}
+\label{sec:fiber}
+%═══════════════════════════════════════════════════════════════════════════════
+
+Fix a connected $k$-partition $\xi$. Two state spaces occur in the
+literature: \emph{forest-valued} chains store $F \in \Fcal_k(G)$, and
+\emph{tree-valued} chains store a compatible spanning tree (possibly with
+marked boundary edges). We treat both; the tree case is where the quotient
+group enters.
+
+\begin{theorem}[Fiber decomposition]
+\label{thm:fiber-decomp}
+For every connected $k$-partition $\xi$, the map
+\[
+  T \;\longmapsto\;
+  \Bigl( \bigl(T \cap E(G[\xi_i])\bigr)_{i=1}^{k},\;
+         T \cap \partial\xi \Bigr)
+\]
+is a bijection between the compatible spanning trees of $G$ and
+$\prod_{i=1}^k \Tcal(G[\xi_i]) \times \Tcal(Q_\xi)$. Consequently
+\[
+\begin{gathered}
+  \tau(\xi) := \#\{\text{compatible spanning trees}\}
+   = \Bigl(\prod_{i=1}^{k} t(G[\xi_i])\Bigr) \cdot t(Q_\xi), \\[4pt]
+  \#\{\text{$k$-forests with } \xi(F) = \xi\} = \prod_{i=1}^{k} t(G[\xi_i]).
+\end{gathered}
+\]
+\end{theorem}
+
+\begin{proof}
+If $T$ is compatible, each $T \cap E(G[\xi_i])$ is by definition a spanning
+tree of $G[\xi_i]$, accounting for $\sum_i (|\xi_i| - 1) = n - k$ edges; the
+remaining $k - 1$ edges of $T$ are boundary edges, and they connect the $k$
+districts without cycles (contracting each district maps $T$ onto a
+connected, $(k-1)$-edge subgraph of $Q_\xi$), i.e.\ they form a spanning
+tree of the multigraph $Q_\xi$. Conversely, the union of spanning trees
+$T_i$ of the districts and a spanning tree $\sigma$ of $Q_\xi$ (a choice of
+$k-1$ boundary edges of $G$ connecting all districts acyclically) has
+$n - 1$ edges, spans $V$, and is acyclic: a cycle would either live inside a
+district (impossible, $T_i$ is a tree) or project to a nontrivial closed
+walk in the tree $\sigma$ (impossible). The two constructions are mutually
+inverse. The forest statement is the case in which no boundary edges are
+selected.
+\end{proof}
+
+\done{Theorem~\ref{thm:fiber-decomp} is fully proved and was verified by
+brute-force enumeration on five partitions of the $2\times 3$ and
+$3 \times 3$ grids and on a $6 \times 6$ instance
+(Section~\ref{sec:computation}).}
+
+\begin{proposition}[Exact fiber resampler]
+\label{prop:resampler}
+Fix $\xi$. Each of the following runs in expected polynomial time and
+returns an exactly uniform sample:
+\begin{enumerate}[(a)]
+  \item a uniform $k$-forest with partition $\xi$: run Wilson's algorithm
+    independently in each $G[\xi_i]$;
+  \item a uniform compatible spanning tree: additionally sample a uniform
+    spanning tree of the multigraph $Q_\xi$, either by Wilson's algorithm
+    on $Q_\xi$, or by sampling a uniform $g \in \PicO{Q_\xi}$ via the Smith
+    normal form and letting $g$ act on a reference tree of $Q_\xi$ through
+    rotor-routing (Fact~\ref{fact:hlmppw}), and take the union as in
+    Theorem~\ref{thm:fiber-decomp}.
+\end{enumerate}
+\end{proposition}
+
+\begin{proof}
+Immediate from Theorem~\ref{thm:fiber-decomp}, Wilson's theorem, and, for
+the torsor route in (b), the fact that if the action of a finite group on a
+finite set is free and transitive then the orbit of any fixed point under a
+uniform group element is uniform.
+\end{proof}
+
+\begin{remark}
+The torsor route in (b) is stated because the group $\PicO{Q_\xi}$, not
+any particular sampler, is the structural object: it indexes the
+\emph{boundary configurations} of $\xi$ and quotients away the within-fiber
+redundancy that tree-valued chains otherwise spend most of their steps
+shuffling~\cite{mew}. In implementations Wilson on $Q_\xi$ is simpler and
+equally exact.
+\end{remark}
+
+%═══════════════════════════════════════════════════════════════════════════════
+\section{The fiber collapse lemma}
+\label{sec:collapse}
+%═══════════════════════════════════════════════════════════════════════════════
+
+We now formalize the removal of (S1). The lemma is stated
+abstractly; the intended instance is $\Omega = \Fcal_k^\varepsilon(G)$ (or
+the compatible-tree space), fibered over
+$\Xi = \Bcal_k^\varepsilon(G)$ by $x \mapsto \xi(x)$, with $P_F$ the exact
+resampler of Proposition~\ref{prop:resampler}.
+
+\paragraph{Setting.} Let $\Omega$ be a finite set, $\zeta : \Omega \to \Xi$
+a surjection onto a finite index set (\emph{fibration}), and $\pi$ a
+probability distribution on $\Omega$ with full support. Write
+$\bar\pi = \zeta_* \pi$ for the pushforward and
+$\nu_\xi = \pi(\,\cdot \mid \zeta = \xi)$ for the conditionals, so that
+$\pi = \sum_{\xi} \bar\pi(\xi)\, \nu_\xi$ and the $\nu_\xi$ have pairwise
+disjoint supports. Define the \emph{fiber resampling kernel}
+\[
+  P_F(x, y) = \nu_{\zeta(x)}(y),
+\]
+and let $P_M$ be any transition kernel on $\Omega$ reversible with respect
+to $\pi$. Define the \emph{sandwich kernel} $P = P_F P_M P_F$ (apply $P_F$,
+then $P_M$, then $P_F$) and the \emph{projected kernel} on $\Xi$
+\[
+  \bar{P}(\xi, \xi') \;=\; \sum_{x \in \zeta^{-1}(\xi)} \nu_\xi(x)
+    \sum_{y \in \zeta^{-1}(\xi')} P_M(x, y).
+\]
+
+\begin{lemma}[Fiber collapse]
+\label{lem:collapse}
+With the notation above:
+\begin{enumerate}[(a)]
+  \item $P_F$ is reversible with respect to $\pi$, idempotent
+    ($P_F^2 = P_F$), and as an operator on $L^2(\pi)$ equals the orthogonal
+    projection $\Pi f = \E_\pi[f \mid \zeta]$ onto the subspace of
+    $\zeta$-measurable functions. Consequently $P = \Pi M \Pi$ (with $M$
+    the operator of $P_M$) is reversible with respect to $\pi$.
+  \item $\bar P$ is reversible with respect to $\bar\pi$, and for the
+    $P$-chain $(x_t)_{t \ge 0}$ started at any $x_0$, the projected process
+    $\xi_t = \zeta(x_t)$ is a Markov chain with kernel $\bar P$ started at
+    $\zeta(x_0)$.
+  \item For every $t \ge 1$ and every $x_0$,
+    \[
+      \tv{\,\mathrm{Law}(x_t) - \pi\,}
+        \;=\; \tv{\,\mathrm{Law}(\xi_t) - \bar\pi\,}
+        \;=\; \tv{\,\bar P^{\,t}(\zeta(x_0), \cdot) - \bar\pi\,}.
+    \]
+    In particular $t_{\mathrm{mix}}(P, \epsilon) =
+    t_{\mathrm{mix}}(\bar P, \epsilon)$ for every $\epsilon$.
+  \item $\operatorname{Spec}(P) = \operatorname{Spec}(\bar P) \cup \{0\}$
+    (as multisets, the eigenvalue $0$ appearing with multiplicity
+    $|\Omega| - |\Xi|$). In particular
+    $\lambda_2(P) = \max\{\lambda_2(\bar P), 0\}$ and
+    $\lambda_{\min}(P) = \min\{\lambda_{\min}(\bar P), 0\}$.
+\end{enumerate}
+\end{lemma}
+
+Informally, once the hidden coordinate is redrawn exactly at every
+step it no longer matters; the chain and its projection onto partitions
+are equally far from stationarity at every time.
+
+\begin{proof}
+(a) For $x, y$ in the same fiber $\zeta^{-1}(\xi)$,
+$\pi(x) P_F(x,y) = \bar\pi(\xi) \nu_\xi(x) \nu_\xi(y)$ is symmetric in
+$(x,y)$; for $x, y$ in different fibers both sides vanish. Idempotence is
+the fact that resampling twice from the same conditional is the same as
+resampling once ($\zeta$ is unchanged by $P_F$). For the operator
+statement, $(P_F f)(x) = \sum_y \nu_{\zeta(x)}(y) f(y) =
+\E_\pi[f \mid \zeta = \zeta(x)]$, which is precisely the conditional
+expectation; conditional expectation is the orthogonal projection onto
+$L^2(\bar\pi) \subseteq L^2(\pi)$, the subspace of $\zeta$-measurable
+functions. Then $P^* = P_F^* P_M^* P_F^* = P_F P_M P_F = P$ since $P_F$,
+$P_M$ are self-adjoint.
+
+(b) Reversibility of $\bar P$: for $g, h : \Xi \to \R$,
+$\langle \bar P g, h \rangle_{\bar\pi} = \langle M (g \circ \zeta),
+h \circ \zeta \rangle_{\pi}$ is symmetric because $M$ is self-adjoint.
+Markov property: one step of $P$ from $x_t$ consists of $y \sim
+\nu_{\zeta(x_t)}$, then $z \sim P_M(y, \cdot)$, then $x_{t+1} \sim
+\nu_{\zeta(z)}$. The law of $\zeta(x_{t+1}) = \zeta(z)$ depends on the past
+only through $\zeta(x_t)$ (the draw $y$ erases the position within the
+fiber), and equals $\bar P(\zeta(x_t), \cdot)$ by definition of $\bar P$.
+
+(c) After the terminal $P_F$ in step $t$, the conditional law of $x_t$
+given $(\xi_0, \ldots, \xi_t)$ is exactly $\nu_{\xi_t}$. Hence
+$\mathrm{Law}(x_t) = \sum_\xi \Pr[\xi_t = \xi]\, \nu_\xi$, while $\pi =
+\sum_\xi \bar\pi(\xi) \nu_\xi$. Because the $\nu_\xi$ have disjoint
+supports,
+\[
+  \tv{\mathrm{Law}(x_t) - \pi}
+   = \tfrac12 \sum_{\xi} \sum_{x \in \zeta^{-1}(\xi)}
+     \bigl| \Pr[\xi_t = \xi] - \bar\pi(\xi) \bigr|\, \nu_\xi(x)
+   = \tfrac12 \sum_{\xi} \bigl| \Pr[\xi_t = \xi] - \bar\pi(\xi) \bigr|,
+\]
+which is the projected total variation distance; the second equality in the
+statement is (b). Taking maxima over starting states (every $\xi_0 \in \Xi$
+is realized by some $x_0$) gives the equality of mixing times.
+
+(d) $L^2(\pi) = \operatorname{ran} \Pi \oplus \ker \Pi$. On
+$\operatorname{ran} \Pi \cong L^2(\bar\pi)$ we have, for $f = g \circ
+\zeta$: $P f = \Pi M \Pi f = \Pi M f = (\bar P g) \circ \zeta$, so
+$P|_{\operatorname{ran}\Pi}$ is conjugate to $\bar P$. On $\ker \Pi$:
+$P f = \Pi M \Pi f = \Pi M 0 = 0$. The spectral statement follows.
+\end{proof}
+
+\done{Lemma~\ref{lem:collapse} is fully proved above and is elementary; its
+value is that Proposition~\ref{prop:resampler} makes $P_F$ \emph{exactly}
+implementable for balanced forests, which is what turns the classical
+decomposition inequality of~\cite{madras2002decomposition} into an identity.}
+
+\begin{theorem}[Conditional mixing theorem]
+\label{thm:conditional}
+Let $\Omega = \Fcal_k^\varepsilon(G)$ with $\zeta = \xi(\cdot)$, let $\pi$
+be any distribution of the product form $\pi(F) = \bar\pi(\xi(F))\,
+\nu_{\xi(F)}(F)$ with $\nu_\xi$ uniform on the fiber (e.g.\ $\pi$ uniform on
+$\Fcal_k^\varepsilon(G)$, for which $\bar\pi = \pi_{\mathrm{sp}}$
+conditioned on balance), and let $P_M$ be any $\pi$-reversible
+partition-changing kernel with each step implementable in polynomial time.
+Then the sandwich chain $P = P_F P_M P_F$ is implementable in expected
+polynomial time per step, reversible with respect to $\pi$, and satisfies
+\[
+  t_{\mathrm{mix}}(P, \epsilon) = t_{\mathrm{mix}}(\bar P, \epsilon)
+  \quad \text{for all } \epsilon .
+\]
+In particular, if the projected chain $\bar P$ on
+$\Bcal_k^\varepsilon(G)$ is irreducible with spectral gap
+$\gamma(\bar P) \ge 1/\mathrm{poly}(n)$, then $P$ mixes in polynomial time
+on the balanced forest space. The same statements hold verbatim for the
+compatible-tree state space using
+Proposition~\ref{prop:resampler}(b).
+\end{theorem}
+
+\begin{proof}
+Combine Proposition~\ref{prop:resampler} (implementability of $P_F$),
+Lemma~\ref{lem:collapse}(a)--(d), and the standard bound
+$t_{\mathrm{mix}}(\bar P, \epsilon) \le
+\gamma(\bar P)^{-1} \log \bigl( (\min_\xi \bar\pi(\xi))^{-1}
+\epsilon^{-1} \bigr)$ for reversible chains (applied after the usual lazy
+modification if $\lambda_{\min}(\bar P) < 0$; laziness changes the gap by a
+factor $2$ and survives the sandwich construction unchanged).
+\end{proof}
+
+\done{Theorem~\ref{thm:conditional} is proved in full, \emph{conditionally
+on a gap bound for the projected chain}. It is the precise interface between
+the algebraic half of the paper (done) and the geometric half (open,
+Section~\ref{sec:targets}).}
+
+\begin{remark}[Why not treat balance algebraically?]
+One might hope the balanced set is itself an orbit or coset for a subgroup
+of $\Pick{G}$, so that Section~\ref{sec:torsor} alone would finish the
+problem. It is not: machine verification on the $2 \times 3$ grid shows that
+already the fiber of a single partition is in general \emph{not} a coset of
+any subgroup of $\Pick{G}$, nor is the union of the balanced fibers
+(Section~\ref{sec:computation}). The group sees the forest structure
+exactly and the balance structure not at all; Lemma~\ref{lem:collapse} is
+the correct division of labor.
+\end{remark}
+
+%═══════════════════════════════════════════════════════════════════════════════
+\section{The projected chain and the strip theorem}
+\label{sec:targets}
+%═══════════════════════════════════════════════════════════════════════════════
+
+By Theorem~\ref{thm:conditional} everything now depends on the
+projected kernel $\bar P$ on $\Bcal_k^\varepsilon(G)$. This section
+fixes a concrete $P_M$, proves the main theorem on $2 \times n$ strips,
+and states the rectangular case as a conjecture with a proof plan.
+
+\subsection{The partition-changing kernel}
+\label{subsec:pm}
+
+We take $P_M$ to be the \emph{window resampling} kernel. From a forest
+$F$ with partition $\xi$, choose an edge $\{i, j\}$ of $Q_\xi$ uniformly
+at random and replace the forest on $H = G[\xi_i \cup \xi_j]$ by an exact
+draw from its conditional distribution given the rest of the state; if
+the window is disconnected, hold. Under the uniform distribution on
+balanced forests the conditional factors. First choose a balanced split
+$\{A, B\}$ of $H$ with probability proportional to $t(G[A])\, t(G[B])$,
+then draw uniform spanning trees of $A$ and of $B$ by Wilson's
+algorithm. On strips the split distribution is explicitly computable,
+since Proposition~\ref{prop:windows} lists the $O(s)$ balanced splits
+and their weights are products of ladder counts, available from the
+three-term recurrence. $P_M$ is a Gibbs block update of the window
+forest given the rest, hence reversible with respect to $\pi$.
+
+\statusnote{This kernel replaced an earlier tree-based definition
+(uniform spanning tree of the window, uniform balanced split edge, MH
+correction). The pre-submission audit found two problems with the
+tree-based route: the exact MH correction of the uniform-tree proposal
+is not computable in closed form, and every implementable variant
+conditions the tree through the current split, which under exact balance
+freezes the projected chain outright
+(Remark~\ref{rem:tree-kernels}; machine-verified). The heat-bath kernel
+has neither problem on strips, and the collapse lemma is indifferent to
+the choice.}
+
+\subsection{Irreducibility (Conjecture A)}
+
+\begin{conjecture}[Irreducibility, exact balance, all $k$]
+\label{conj:irred}
+Let $G$ be an $a \times b$ rectangular grid graph with $k \mid ab$. The
+projected window-resampling chain $\bar P$ is irreducible on
+$\Bcal_k^0(G)$, with diameter $O(ab)$ moves.
+\end{conjecture}
+
+\paragraph{Status and plan.} For $k = 2$ this follows for the BUD chain
+from \cite[Thm.~B.2]{akitaya2026bud} on all simple grid graphs (any
+prescribed part sizes, diameter $O(n)$); a transfer argument from BUD moves
+to window moves is needed and appears routine, since every BUD move
+between exactly balanced states is realized by one window resample of the
+two districts involved (via \cite[Lemma~A.3]{akitaya2026bud}, retreeing is free
+inside our framework: the fiber coordinate is irrelevant after collapse).
+For $k \ge 3$ the natural strategy, proposed in~\cite{akitaya2026bud} and
+currently open, is recursion: prove the $k = 2$ statement not just for
+simple grid graphs but for the district-pair subgraphs
+$G[\xi_i \cup \xi_j]$ that arise along the recursion; these are connected
+but can have holes and cut vertices, where counterexamples are known to
+exist in general \cite[Lemma~B.14]{akitaya2026bud}. The plan:
+\begin{enumerate}[1.]
+  \item Prove Conjecture~\ref{conj:irred} for $k = 3$ on rectangles
+    directly, by adapting the canonicalization argument of
+    \cite[App.~B]{akitaya2026bud}: canonicalize to bands of columns, using
+    window moves of \emph{adjacent} bands only (the union of two adjacent
+    canonical bands is simply connected, avoiding the holes obstruction).
+  \item Identify the class of intermediate shapes closed under the
+    recursion (candidate: ``column-convex'' district pairs) and prove the
+    $k = 2$ statement for that class.
+  \item General $k$ by induction, always merging a canonical extreme band
+    with its neighbor.
+\end{enumerate}
+
+\missing{All three steps. Step 1 is a finite, technical extension of a
+published argument and is the right first target ($\sim$weeks, not months).
+Note the competition risk: the authors of~\cite{akitaya2026bud} state the
+$k > 2$ extension as their own ongoing work. Our differentiator is that we
+only need irreducibility for \emph{merge--split on rectangles}, not for BUD
+on arbitrary grid subgraphs; check whether restricting the ambition this way
+shortens their argument materially.}
+
+Corollary~\ref{cor:strip-irred} proves the strip analogue of
+Conjecture~\ref{conj:irred} outright; the triomino irreducibility of
+\cite[Thm.~B.13]{akitaya2026bud} on rectangles and the $3 \times 3$
+computation of Section~\ref{sec:computation} support the rectangular
+case.
+
+\statusnote{Empirical support: on the $3 \times 3$ grid with $k = 3$ and
+exact balance, the \emph{partition-level} communication classes of a
+boundary-restricted chain cover all $10$ balanced partitions
+(Section~\ref{sec:computation}); and \cite[Thm.~B.13]{akitaya2026bud} proves
+the triomino case ($k = ab/3$) on all rectangles, which includes
+$3 \times 3$, $k = 3$.}
+
+\subsection{The main theorem for $2 \times n$ strips}
+\label{subsec:strips}
+
+\begin{theorem}[Strip gap]
+\label{conj:strip}
+Fix $k \ge 3$ with $k \mid 2n$, exact balance, and write $s = 2n/k$. The
+projected window-resampling chain $\bar P$ on $\Bcal_k^0(2 \times n)$
+satisfies, with absolute constants $c, C_0 > 0$,
+\[
+  \gamma(\bar P) \;\ge\; \frac{c}{k \log(k+1)}
+  \qquad \text{for } s \ge C_0 \log(k+1),
+\]
+and $\gamma(\bar P) > 0$ for the finitely many smaller $s$ (by
+Corollary~\ref{cor:strip-irred}). The proof is in
+Section~\ref{subsec:coupling}.
+\end{theorem}
+
+\begin{remark}[Why $k \ge 3$]
+\label{rem:k2-trivial}
+For $k = 2$ the only window is the whole strip, so a single update
+redraws the entire partition from its exact conditional distribution;
+the chain mixes in one step and yields no interesting theorem. The
+substantive question, where updates are genuinely local, begins at
+$k = 3$.
+\end{remark}
+
+\begin{corollary}[Strip mixing, unconditional]
+\label{cor:strip-mixing}
+Fix $k \ge 2$ with $k \mid 2n$ and $s = 2n/k$. Take $P_M$ to be the
+window resampling kernel of Section~\ref{subsec:pm} and
+$P = P_F P_M P_F$ the fiber-Gibbs balanced chain on
+$\Fcal_k^0(2 \times n)$. Then
+\[
+  t_{\mathrm{mix}}(P, 1/4) \;\le\; 2(k-1)\bigl(\lceil \log(k+1)
+  \rceil + 4\bigr)
+  \qquad \text{for } s \ge C_0 \log(k+1),
+\]
+where $C_0$ is the constant of Lemma~\ref{lem:coupling}, and
+$t_{\mathrm{mix}}(P, 1/4) \le C_k$ for the finitely many remaining $n$.
+Each step runs in expected time $O(n \log n)$ measured in random
+walk moves, plus arithmetic on $O(n)$-digit integers, so for every
+fixed $k$ the sampler produces an approximately uniform balanced
+$k$-forest in near-linear expected total time. To our knowledge this is
+the first polynomial mixing-time bound for a Markov chain whose states
+are
+balanced connected partitions (lifted to forests) of a nontrivial graph
+family. The proof is at the end of Section~\ref{subsec:coupling}.
+\end{corollary}
+
+\paragraph{The balanced partition space of a strip.} We settle the $k = 2$
+structure completely; it is the template for the general interface coding.
+Index the vertices of the $2 \times n$ grid by $\{0,1\} \times \{0, \ldots,
+n-1\}$ (row, column); \emph{column} $c$ is the pair $\{(0,c), (1,c)\}$. For
+a $2$-partition $\{A, B\}$, call a column \emph{pure-$A$}
+(resp.\ \emph{pure-$B$}) if both its vertices lie in $A$ (resp.\ $B$), and
+\emph{mixed} otherwise; the \emph{orientation} of a mixed column records
+which part holds its top vertex.
+
+\begin{proposition}[Classification of balanced $2$-partitions of the strip]
+\label{prop:strip-classify}
+Let $n \ge 2$. The balanced connected $2$-partitions of the $2 \times n$
+grid are exactly the following, and there are exactly $n$ of them:
+\begin{enumerate}[(a)]
+  \item the horizontal split $\{$top row, bottom row$\}$;
+  \item for $n$ even, the vertical split after column $n/2 - 1$;
+  \item for each $a \in \{1, \ldots, \lceil n/2 \rceil - 1\}$ and each
+    $\sigma \in \{\mathrm{top}, \mathrm{bottom}\}$, the \emph{staircase}
+    $S_{a,\sigma} = \{P_{a,\sigma},\, V \setminus P_{a,\sigma}\}$, where
+    $P_{a,\sigma}$ consists of the $a$ leftmost (full) columns together
+    with the $\sigma$-row vertices of the middle $n - 2a$ columns.
+\end{enumerate}
+\end{proposition}
+
+\begin{proof}
+Each listed partition is balanced ($|P_{a,\sigma}| = 2a + (n-2a) = n$) and
+has connected parts: the middle vertices of $P_{a,\sigma}$ form a
+horizontal path attached to its full block, and the complement is the
+left--right, top--bottom mirror image. The left--right mirror of
+$S_{a,\mathrm{top}}$ coincides with $S_{a,\mathrm{bottom}}$ \emph{as an
+unordered partition}, so each unordered partition appears exactly once in
+the list, and the listed partitions are pairwise distinct. It remains to
+show there are no others.
+
+Let $\{A, B\}$ be a balanced connected $2$-partition, with $a', b', m$ the
+numbers of pure-$A$, pure-$B$, and mixed columns. Every mixed column
+contributes one vertex to each part, so $n = |A| = 2a' + m$ and
+$n = |B| = 2b' + m$; hence $a' = b'$.
+
+\emph{Step 1: no pure columns $\Rightarrow$ horizontal split.} If all
+columns are mixed and two adjacent columns had different orientations,
+$A$ would meet both rows; a connected set meeting both rows must contain a
+vertical edge, i.e.\ a pure column, a contradiction. So all orientations
+agree and $A$ is a full row.
+
+\emph{Step 2: the pure-$A$ columns are consecutive; likewise pure-$B$.}
+Suppose pure-$A$ columns $c < c'$ have a non-pure-$A$ column strictly
+between them. Any path between vertices on opposite sides of column $c$
+passes through column $c$, which lies entirely in $A$; hence the connected
+set $B$ has no vertices on both sides of $c$, nor of $c'$. Since some
+column strictly between $c$ and $c'$ contains a $B$-vertex, $B$ lies
+entirely in the open ``pocket'' between $c$ and $c'$. Because $A$ is
+connected, some $A$-path crosses the pocket from column $c$ to column
+$c'$; inside the pocket it cannot change rows (a row change uses a
+vertical edge with both endpoints in $A$, i.e.\ a pure-$A$ column, and the
+pocket contains none), so one full row of the pocket lies in $A$. Every
+pocket column, being non-pure-$A$, then has exactly its other-row vertex
+in $B$, whence $|B| = (\text{pocket width}) \le n - 2 < n$, contradicting
+balance.
+
+\emph{Step 3: mixed columns lie between the two pure blocks, which sit at
+the two ends.} If $a' = 0$ we are in Step 1, so let $a' = b' \ge 1$; by
+Step 2 there is a single pure-$A$ block and a single pure-$B$ block. A
+mixed column with both blocks on the same side of it has a $B$-vertex
+(or, in the mirrored case, an $A$-vertex) that must reach its block by a
+path crossing the other part's pure block, which blocks both rows; this
+is impossible. Hence all mixed columns lie between the blocks, the pure-$A$
+block starts at column $0$, and the pure-$B$ block ends at column $n-1$
+(or the mirror image, which yields the same set of unordered partitions).
+
+\emph{Step 4: the mixed run has constant orientation.} Let the mixed run
+occupy columns $\ell, \ldots, r$ and suppose a flip occurs; let $d$ be the
+leftmost mixed column whose orientation differs from that of column
+$\ell$. Up to reflecting the rows, $A$ holds the tops of columns $\ell,
+\ldots, d-1$ and the bottom of column $d$. Let $\{(1,d), \ldots, (1,e)\}$
+be the maximal bottom-row run of $A$-vertices starting at $(1,d)$, with
+$e \le r$. Its left neighbor $(1, d-1)$ is in $B$ (column $d-1$ has $A$
+on top); its right neighbor $(1, e+1)$ is in $B$ (either a mixed column
+with $A$ on top, by maximality, or the pure-$B$ block); and every vertical
+neighbor $(0, j)$, $d \le j \le e$, is in $B$. So this run is a connected
+component of $A$ not containing the pure-$A$ block, contradicting
+connectivity.
+
+Steps 1--4 leave exactly the pattern
+$[\text{pure-}A]^{a} [\text{mixed, orientation } \sigma]^{\,n-2a}
+[\text{pure-}B]^{a}$: this is $S_{a,\sigma}$ when $n - 2a \ge 1$, the
+vertical split when $n = 2a$, and the horizontal split when $a = 0$.
+Counting: $1 + 2(\lceil n/2 \rceil - 1) + \mathbf{1}_{\{n\ \mathrm{even}\}}
+= n$ in both parities.
+\end{proof}
+
+\done{Proposition~\ref{prop:strip-classify} is proved in full and matches
+the exhaustive machine counts for all $n \le 12$
+(Section~\ref{sec:computation}, item 6). It also corrects an imprecision in
+an earlier version of this section: the balanced states are staircases, not
+column cuts; the vertical cut exists only for even $n$.}
+
+\begin{proposition}[Stationary law on the strip, $k = 2$]
+\label{prop:strip-law}
+Let $t_a$ denote the number of spanning trees of the $2 \times a$ grid:
+$t_1 = 1$, $t_2 = 4$, $t_a = 4t_{a-1} - t_{a-2}$. Under the uniform
+distribution on balanced $2$-forests of the $2 \times n$ grid (equivalently,
+$\pi_{\mathrm{sp}}$ conditioned on exact balance), the projected law on the
+$n$ partitions of Proposition~\ref{prop:strip-classify} is
+\[
+  \bar\pi(\mathrm{horizontal}) \propto 1, \qquad
+  \bar\pi(S_{a,\sigma}) \propto t_a^{\,2}, \qquad
+  \bar\pi(\mathrm{vertical}) \propto t_{n/2}^{\,2}.
+\]
+In particular $\bar\pi$ is log-linear in the staircase depth $a$ with rate
+$2\log(2 + \sqrt{3})$ and concentrates on the deepest cuts.
+\end{proposition}
+
+\begin{proof}
+By Theorem~\ref{thm:fiber-decomp} the fiber of $\xi$ contains $\prod_i
+t(G[\xi_i])$ forests. The parts of the horizontal split are paths, each
+with one spanning tree. The induced graph of $P_{a,\sigma}$ is the
+$2 \times a$ grid with a path of $n - 2a$ vertices attached by a single
+edge at a corner; the attached path consists of bridges, present in every
+spanning tree, so $t(G[P_{a,\sigma}]) = t_a$, and the complementary part is
+isomorphic to its mirror image, giving $t_a^2$. The recurrence and growth
+constant $2 + \sqrt 3$ (largest root of $x^2 = 4x - 1$) are classical for
+strip graphs.
+\end{proof}
+
+\done{Proposition~\ref{prop:strip-law} is proved in full. Together the two
+propositions complete Theorem~\ref{conj:strip} step 1 for $k = 2$ and
+supply the tree-count calculus (district count $= t_{\mathrm{width}}$, since
+staircase fringes attach as pendant paths at corners) used for the
+conditionals in step 2.}
+
+\begin{lemma}[Split counts and constant split probability on windows]
+\label{lem:split}
+Let $w \ge 2$, let $T$ be a uniform spanning tree of the $2 \times w$ grid,
+and let $\xi = \{A, B\}$ range over the balanced connected $2$-partitions of
+the window (Proposition~\ref{prop:strip-classify}).
+\begin{enumerate}[(a)]
+  \item The spanning trees with $|T \cap \partial\xi| = 1$ (equivalently,
+    those containing an edge whose removal yields exactly $\xi$, necessarily
+    unique) number exactly $t(G[A]) \cdot t(G[B]) \cdot |\partial\xi|$.
+  \item For $w$ even,
+    \[
+      \Pr\bigl[T \text{ admits a balanced split}\bigr]
+        \;\ge\; \frac{2\, t_{w/2}^2}{t_w}
+        \;=\; \frac{1}{\sqrt 3}\cdot
+          \frac{\lambda^w + \lambda^{-w} - 2}{\lambda^w - \lambda^{-w}}
+        \;\ge\; \frac12,
+      \qquad \lambda = 2 + \sqrt 3,
+    \]
+    with equality at $w = 2$ and limit $1/\sqrt 3$ as $w \to \infty$.
+  \item A tree admits at most one balanced split edge per partition, hence
+    at most $w$ balanced split edges in total. Consequently the
+    tree proposal (a uniform spanning tree of the window followed
+    by a uniform choice among its balanced split edges) proposes each
+    balanced $\xi$ with probability at least
+    $t(G[A])\, t(G[B])\, |\partial\xi| / (w \, t_w)$, which is within a
+    factor $\mathrm{poly}(w)$ of the exact conditional
+    $\bar\pi(\xi) \propto t(G[A])\, t(G[B])$: the move is a
+    $\mathrm{poly}(w)$-accurate independence sampler for the interface
+    conditional.
+\end{enumerate}
+\end{lemma}
+
+\begin{proof}
+(a) If $T \cap \partial\xi = \{e\}$, then $T \setminus \{e\}$ is an acyclic
+subgraph of $G[A] \sqcup G[B]$ with $2w - 2$ edges, i.e.\ the disjoint union
+of a spanning tree of $G[A]$ and one of $G[B]$; conversely every triple
+$(T_A, T_B, e)$ with $e \in \partial\xi$ assembles to such a spanning tree,
+and the two maps are mutually inverse. Removing an edge $e'$ of a spanning
+tree produces the partition into the two components of $T \setminus \{e'\}$;
+this equals $\xi$ if and only if $T \cap \partial\xi = \{e'\}$. So the
+counted trees are exactly those admitting a split at $\xi$, with a unique
+split edge.
+
+(b) Apply (a) to the vertical cut: $G[A] \cong G[B] \cong 2 \times (w/2)$
+grid and $|\partial\xi| = 2$, giving the lower bound $2 t_{w/2}^2 / t_w$.
+With $t_a = (\lambda^a - \lambda^{-a})/(2\sqrt3)$ and
+$\lambda \lambda^{-1} = 1$, the middle expression follows by expanding the
+square. The inequality $\ge 1/2$ is equivalent to
+$(1 - \tfrac{\sqrt3}{2})\lambda^w + (1 + \tfrac{\sqrt3}{2})\lambda^{-w}
+\ge 2$, which holds with equality at $w = 2$ and whose left side is
+increasing in $w \ge 2$ (its derivative has the sign of
+$(1 - \tfrac{\sqrt3}{2})\lambda^w - (1 + \tfrac{\sqrt3}{2})\lambda^{-w}$,
+positive already at $w = 2$).
+
+(c) Uniqueness per partition is (a); Proposition~\ref{prop:strip-classify}
+bounds the number of partitions by $w$. If a tree has $s \le w$ balanced
+split edges, each is chosen with probability $1/s \ge 1/w$; combining with
+(a) gives the proposal bound. Since $2 \le |\partial\xi| \le w + 2$, the
+proposal law and $\bar\pi$ differ by factors in
+$[\,2/(w(w+2)),\, 1\,] \cdot \mathrm{const}$.
+\end{proof}
+
+\done{Lemma~\ref{lem:split} is proved in full and machine-verified: the
+counting identity of (a) holds exactly for every balanced partition at
+$w = 4, 6, 8$ (exhaustive enumeration over $56$, $780$, $10{,}864$ trees);
+the splittability probabilities are $0.786, 0.764, 0.763$ against the
+bound $0.571, 0.577, 0.577$; and the measured proposal/target ratios lie
+in $[0.86, 3.5]$. This retires the estimate previously flagged as the
+technical heart of Theorem~\ref{conj:strip}: what remains of step 2 is
+to extend the lemma from rectangular windows to the merged windows of
+\emph{interior} district pairs, whose shape is a ladder with a pendant
+staircase fringe at each end; the tree-count calculus is unchanged, as
+pendant fringes contribute factor $1$.}
+
+\paragraph{The general classification.} For $k \ge 3$ the same column
+analysis settles the full structure. Write $s = 2n/k$, and set
+$\hat t_0 = 1$ and $\hat t_a = t_a$ for $a \ge 1$ (the ladder counts of
+Proposition~\ref{prop:strip-law}; a district with no full column is a
+path and has one spanning tree).
+
+\begin{proposition}[Classification, general $k$]
+\label{prop:strip-classify-k}
+Let $k \ge 2$ and $k \mid 2n$. The balanced connected $k$-partitions of
+the $2 \times n$ grid are exactly the configurations produced as follows.
+Choose integers $a_1, \ldots, a_k \ge 0$, set $\mu_0 = \mu_k = 0$ and
+$\mu_i = s - 2a_i - \mu_{i-1}$ for $1 \le i \le k-1$, and require
+$\mu_i \ge 0$ for all $i$ together with $2a_k = s - \mu_{k-1}$. The
+column word, read left to right, is
+\[
+  P_1^{\,a_1}\, R_1^{\,\mu_1}\, P_2^{\,a_2}\, R_2^{\,\mu_2} \cdots
+  R_{k-1}^{\,\mu_{k-1}}\, P_k^{\,a_k},
+\]
+where $P_i$ denotes a full column of district $i$ and each nonempty run
+$R_j^{\,\mu_j}$ consists of mixed columns carrying districts $j$ and
+$j+1$ in its two rows, with a single orientation $\sigma_j$ throughout
+the run. Orientations are arbitrary subject to one rule: a district $i$
+with $a_i = 0$ lies in a single row, so when both of its runs are
+nonempty, $\sigma_{i-1}$ and $\sigma_i$ must place it in the same row.
+Distinct admissible codings produce distinct partitions, with one
+exception: when $a_i = a_{i+1} = 0$ and $\mu_{i-1} = \mu_{i+1} = 0$ (a
+\emph{co-spanning pair}, horizontally splitting the same $s$ columns),
+the two choices of $\sigma_i$ give the same partition. Consequently:
+\begin{enumerate}[(a)]
+  \item $|\Bcal_k^0(2 \times n)| = \Theta_k(n^{k-1})$;
+  \item all interface parities are determined: $\mu_1 \equiv s$ and
+    $\mu_{j+1} \equiv s - \mu_j \pmod 2$;
+  \item $t(G[\xi_i]) = \hat t_{a_i}$ for every district, so
+    \[
+      \bar\pi(\xi) \;\propto\; \prod_{i=1}^{k} \hat t_{a_i}
+      \;=\; \Theta_k\bigl(\lambda^{-\sum_j \mu_j}\bigr),
+      \qquad \lambda = 2 + \sqrt3,
+    \]
+    and the projected measure concentrates exponentially on minimal
+    interface widths.
+\end{enumerate}
+\end{proposition}
+
+Informally, a balanced map of the strip is a sequence of solid blocks
+joined by slanted interfaces. Its probability depends only on the
+interface widths, and each additional cell of width divides the
+probability by roughly $\lambda \approx 3.73$.
+
+\begin{proof}
+\emph{Supports are intervals.} If district $D$ meets columns $c < c'$
+but not an intermediate column $d$, a path inside $D$ joining the two
+sides would use a cell of column $d$, which $D$ does not have.
+
+\emph{Overlap structure.} A column has two cells, so it meets at most
+two districts, and two districts sharing a column each occupy one of its
+rows there. Order the districts by the left endpoints of their supports.
+
+\emph{The full columns of a district are consecutive.} Suppose district
+$D$ has full columns $c < c'$ and some intermediate column is not full
+for $D$ (a \emph{pocket}). Since supports are intervals, $D$ meets every
+pocket column; the remaining pocket cells belong to districts whose
+supports lie strictly inside the pocket, as they cannot contain the full
+columns $c, c'$. Exactly as in Step 2 of
+Proposition~\ref{prop:strip-classify}, connectivity of $D$ across the
+pocket forces one entire row of the pocket into $D$, so the other pocket
+row is a disjoint union of trapped districts, each of them a path of $s$
+cells; the pocket width is then at least $s$ and
+$|D| \ge 2 + 2 + s > s$, contradicting balance.
+
+\emph{Runs and orientations.} Between two consecutive full blocks every
+column is mixed, and by the support ordering the mixed pairs appear as
+$(i, i+1), (i+1, i+2), \ldots$ in left-to-right order; the intermediate
+districts have no full column, hence contain no vertical edge, hence lie
+in a single row. Within one maximal run the orientation is constant: a
+flip creates a maximal one-row segment of one district whose horizontal
+neighbors on both sides and all vertical neighbors belong to the other
+district of the run, stranding it from the rest of its district exactly
+as in Step 4 of Proposition~\ref{prop:strip-classify}; for a
+row-confined district a flip contradicts row-confinement outright.
+
+\emph{Balance and the converse.} District $i$ has $2a_i$ cells in its
+full block and one cell in each column of its adjacent runs, giving
+$2a_i + \mu_{i-1} + \mu_i = s$, which determines the $\mu_i$
+recursively. Conversely, every admissible coding produces a balanced
+connected $k$-partition: each district is a full block with pendant
+fringes, or a single-row path. The column word determines the partition,
+and the word determines the coding except that flipping a $\sigma_i$ can
+at most permute district names, which yields the same unordered
+partition exactly in the co-spanning case. For the count,
+$(a_1, \ldots, a_{k-1})$ ranges over the lattice points of a
+$(k-1)$-dimensional polytope with side lengths $\Theta(s)$, and
+orientation multiplicities lie in $[1, 2^{k-1}]$. The parity claims
+follow from the balance equations read from the left end ($\mu_0 = 0$);
+the tree counts from the pendant-path argument of
+Proposition~\ref{prop:strip-law}; and the product form from
+$\sum_i a_i = n - \sum_j \mu_j$ together with
+$\hat t_a = \Theta(\lambda^{a})$.
+\end{proof}
+
+\done{Proposition~\ref{prop:strip-classify-k} is machine-verified as a
+set equality (coded family versus brute-force enumeration) for
+$k = 2, 3, 4$ at all admissible $n \le 12$, $k = 5$ at
+$n \in \{5, 10\}$, and $k = 6$ at $n = 9$, together with
+$t(G[\xi_i]) = \hat t_{a_i}$ for every district of every partition
+(Section~\ref{sec:computation}, item 7). This completes
+Theorem~\ref{conj:strip} step 1 in full, for exact balance.}
+
+\begin{proposition}[Interior windows]
+\label{prop:windows}
+Let $\xi \in \Bcal_k^0(2 \times n)$ and let $\{D, D'\}$ be any edge of
+$Q_\xi$. Then $G[D \cup D']$ is a $2 \times w$ ladder, $0 \le w \le s$,
+with a pendant path attached at a prescribed corner on each side (the
+cells the pair contributes to runs shared with other districts; for
+non-consecutive $Q_\xi$-neighbors the union is a ladder with an extended
+pendant, or a single path when $w = 0$), and
+$t(G[D \cup D']) = \hat t_w$. Writing $p, q$ for the pendant lengths
+($p + q + 2w = 2s$), the balanced connected $2$-partitions of the window
+are exactly the staircase splits
+\[
+  A = (\text{left pendant}) \cup (\text{first } x \text{ ladder
+  columns}) \cup (\text{a fringe of } f \text{ cells in one row}),
+\]
+up to complementation, where $p + 2x + f = s$, $x, f \ge 0$, and
+$x + f \le w$. In particular pendants are never severed, there are at
+most $2(w+1)$ balanced splits, and Lemma~\ref{lem:split}(a) applies
+verbatim. A split with $f \in \{0, 1\}$ always exists, and for
+$w \ge 1$
+\[
+\begin{gathered}
+  \Pr\bigl[\text{a uniform spanning tree of } G[D \cup D'] \text{
+  admits a balanced split}\bigr] \\
+  \;\ge\; \frac{2 \hat t_x \hat t_y}{t_w} \;\ge\; \frac{1}{10},
+  \qquad x + y \ge w - 1,
+\end{gathered}
+\]
+while for $w = 0$ the window is a path and the probability is $1$.
+\end{proposition}
+
+\begin{proof}
+The shape statement is read off the coding of
+Proposition~\ref{prop:strip-classify-k}: the pair's full blocks and
+shared run contribute full columns (the ladder), and the cells the pair
+holds in runs shared with third districts are one-row segments attached
+at a ladder corner by a single edge (pendant paths); pendant paths do
+not change tree counts, so $t(G[D \cup D']) = \hat t_w$.
+
+For the splits: a balanced part meeting a pendant contains its
+attachment corner, since a connected set strictly inside a pendant is a
+path of fewer than $s$ cells (the case $p = s$, where one part equals
+the whole pendant, is the split with $x = f = 0$). The two parts have
+interval column supports, and the analysis of
+Proposition~\ref{prop:strip-classify} applied to the ladder portion
+yields exactly the staircase family; counting $x \in \{0, \ldots, w\}$
+and at most two fringe rows gives at most $2(w+1)$ splits.
+
+Existence: set $f \equiv s - p \pmod 2$ with $f \in \{0, 1\}$, and
+$x = (s - p - f)/2$. Then $x \ge 0$ because $p \le s$ (district $D$'s
+balance equation), and $x + f \le w$ because $q \le s$. The parts have
+tree counts $\hat t_x$ and $\hat t_y$ with $y = w - x - f$, so
+$x + y \ge w - 1$, and Lemma~\ref{lem:split}(a) gives the bound
+$2 \hat t_x \hat t_y / t_w$ (a vertical or near-vertical split has at
+least two boundary edges). Finally, for $x, y \ge 1$ the closed form
+$t_a = (\lambda^a - \lambda^{-a})/(2\sqrt3)$ gives
+\[
+  \frac{t_x t_y}{t_{x+y}}
+  = \frac{\lambda^{x+y} - \lambda^{x-y} - \lambda^{y-x} +
+      \lambda^{-x-y}}{2\sqrt3\,(\lambda^{x+y} - \lambda^{-x-y})}
+  \;\ge\; \frac{1 - 2\lambda^{-2}}{2\sqrt3} \;>\; \frac15,
+\]
+and the ratio equals $1$ when $x = 0$ or $y = 0$; combined with
+$t_{x+y} \ge t_{w-1} \ge t_w/4$ (from the recurrence), the probability
+is at least $2 \cdot \frac15 \cdot \frac14 = \frac1{10}$.
+\end{proof}
+
+\done{Proposition~\ref{prop:windows} is machine-verified on $125$ window
+configurations ($w \le 6$, $p, q \le 3$, all corner placements): the
+staircase family equals the brute-force set of balanced splits, the
+split identity is exact, and the minimum observed splittability
+probability is $0.40$ against the proven bound $0.10$
+(Section~\ref{sec:computation}, item 8). This completes
+Theorem~\ref{conj:strip} step 2 in full.}
+
+\begin{corollary}[Irreducibility on strips, all $k$]
+\label{cor:strip-irred}
+For every $k \ge 2$ with $k \mid 2n$, the projected
+window-resampling chain on $\Bcal_k^0(2 \times n)$ is irreducible, with
+diameter at most $2(k-1)$.
+\end{corollary}
+
+\begin{proof}
+Sweep the interfaces left to right. Districts $1$ and $2$ are always
+$Q_\xi$-adjacent: they share vertical edges when $\mu_1 \ge 1$ (which
+covers every configuration with $a_1 = 0$, since then $\mu_1 = s$), and
+abut through full columns when $\mu_1 = 0$. By
+Proposition~\ref{prop:windows} the resample at interface $1$ realizes
+every admissible $(a_1', \mu_1', \sigma_1')$; choose $\mu_1'$ minimal
+for its parity ($0$ or $1$). Inductively, once interface $j-1$ has
+minimal width $\mu_{j-1}' \le 1$, districts $j$ and $j+1$ are adjacent:
+if $\mu_j \ge 1$ they share a run, and if $\mu_j = 0$ then
+$2a_j = s - \mu_{j-1}' \ge s - 1 \ge 1$, so district $j$ has a full
+block abutting district $j+1$'s columns. Setting $\mu_j'$ minimal is
+admissible because $\mu_j' \le \mu_j$ (equal parities), whence
+$2a_{j+1}' = s - \mu_j' - \mu_{j+1} \ge s - \mu_j - \mu_{j+1} \ge 0$.
+After one sweep the interface widths equal the parity vector and the
+$a_i$ are determined; the only remaining freedom is the orientation of
+width-one runs, and one further resample per interface realizes any
+orientation. Hence every state reaches a common canonical configuration
+in at most $2(k-1)$ moves.
+\end{proof}
+
+\done{Corollary~\ref{cor:strip-irred} settles the strip case of the
+irreducibility program for \emph{all} $k$ under \emph{exact} balance
+(compare Conjecture~\ref{conj:irred}, which concerns rectangles). Both
+heat-bath projected chain was also verified irreducible by machine at
+every tested $(k, n)$.}
+
+\begin{remark}[Tree-based kernels]
+\label{rem:tree-kernels}
+Practical redistricting chains propose window moves through spanning
+trees, and two cautions emerged from our audit; both are reasons the
+results above are stated for the window resampling kernel. First, the
+idealized tree proposal (a uniform spanning tree of the window, then a
+uniform balanced split edge) admits no closed-form Metropolis--Hastings
+correction, because the reverse-proposal probability averages the
+reciprocal number of split edges over all window trees. Second, the
+implementable corrections condition the proposal tree to pass through
+the current split, and any such kernel can move between two splits only
+if some window tree contains exactly one boundary edge of each. Under
+exact balance the splits of a window cross one another, and exhaustive
+computation shows that no such tree exists at $s = 4, 6, 8$; the
+projected tree-based chain is then frozen even though each of its
+updates is exactly reversible (Section~\ref{sec:computation}, item 11).
+Chains whose state carries the forest itself, such as the cycle walk and
+the balanced up-down walk~\cite{deford2025cycle, akitaya2026bud}, do not
+face this issue, because the tree is part of the state rather than an
+auxiliary draw.
+\end{remark}
+
+\paragraph{Organization of the proof.} The proof of
+Theorem~\ref{conj:strip} has four ingredients. (1) \emph{Structure}:
+Proposition~\ref{prop:strip-classify-k}. (2) \emph{One interface}:
+Proposition~\ref{prop:windows}, which also makes the heat-bath update
+explicitly computable, with Corollary~\ref{cor:strip-irred} providing
+irreducibility. (3) \emph{Many
+interfaces}: Lemmas~\ref{lem:concentration} and~\ref{lem:coupling}. (4)
+\emph{Assembly}: the proofs at the end of
+Section~\ref{subsec:coupling}.
+
+\paragraph{Exact spectral gaps.} The random-scan heat-bath projected
+chain was diagonalized exactly on the coded state space:
+\begin{center}
+\begin{tabular}{cccc}
+\hline
+$k$ & $n$ & states & $\gamma(\bar P)$ \\
+\hline
+$3$ & $6$  & $9$   & $0.400$ \\
+$3$ & $12$ & $33$  & $0.492$ \\
+$3$ & $18$ & $73$  & $0.499$ \\
+$3$ & $24$ & $129$ & $0.500$ \\
+$4$ & $8$  & $25$  & $0.238$ \\
+$4$ & $12$ & $77$  & $0.306$ \\
+$4$ & $16$ & $177$ & $0.326$ \\
+$5$ & $10$ & $64$  & $0.168$ \\
+$5$ & $15$ & $288$ & $0.227$ \\
+\hline
+\end{tabular}
+\end{center}
+The gap \emph{increases} with $n$ toward $1/(k-1)$, the maximum
+possible for a random-scan chain on $k-1$ coordinates, and the chain is
+reversible to machine precision and irreducible at every tested
+$(k, n)$.
+
+\subsection{Proof of the strip gap}
+\label{subsec:coupling}
+
+In the coordinates of Proposition~\ref{prop:strip-classify-k} the
+heat-bath chain admits a simple description. Pick one of the $k-1$
+interfaces at random and redraw its width and orientation from the
+correct conditional distribution, leaving everything else unchanged. The
+conditional charges a factor of about $\lambda \approx 3.73$ per cell of
+width, so it is heavily biased toward the narrowest admissible widths.
+The next lemma makes this quantitative in two ways, and neither
+statement cares what the rest of the partition looks like.
+
+\begin{lemma}[Concentration and merging of the conditionals]
+\label{lem:concentration}
+Consider the heat-bath update at an interface whose two neighboring
+interfaces currently have widths $u$ and $v$, and let
+$\varepsilon \in \{0, 1\}$ be the parity of the updated width
+(Proposition~\ref{prop:strip-classify-k}(b)).
+\begin{enumerate}[(a)]
+  \item \textbf{Concentration.} For every $u, v$ and every $r \ge 0$,
+    the new width $m$ satisfies
+    $\Pr[m \ge \varepsilon + 2r] \le 31\, \lambda^{-2r}$.
+  \item \textbf{Merging.} If $s \ge 8$ and $u, v, u', v' \le s/4$
+    (with the parities they must have), the conditionals given $(u, v)$
+    and given $(u', v')$ differ in total variation by at most
+    $40\, \lambda^{-s/4}$.
+\end{enumerate}
+\end{lemma}
+
+\begin{proof}
+Up to a factor not depending on $m$, the weight of width $m$ is
+$\lambda^{-m} g(m)$ with $g(m) = h(a)\, h(a')\, \nu(m)$, where
+$a = (s - u - m)/2$ and $a' = (s - m - v)/2$ are the two block widths,
+$h(a) := \hat t_a / (A \lambda^a)$ with $A = 1/(2\sqrt3)$, and
+$\nu(m) \in [1, 2]$ counts the admissible orientations. From the closed
+form, $h(a) = 1 - \lambda^{-2a} \in [1 - \lambda^{-2}, 1)$ for
+$a \ge 1$, and $h(0) = 2\sqrt3$. Hence $g(m) \in [c_-, c_+]$ with
+$c_+ / c_- \le 2\,(2\sqrt3)^2 / (1 - \lambda^{-2})^2 \le 28$.
+
+(a) The smallest admissible width is $\varepsilon$ whenever the support
+is nonempty, so
+\[
+  \Pr[m \ge \varepsilon + 2r]
+  \;\le\; \frac{c_+ \sum_{i \ge r} \lambda^{-(\varepsilon + 2i)}}
+               {c_- \lambda^{-\varepsilon}}
+  \;=\; \frac{c_+}{c_-} \cdot \frac{\lambda^{-2r}}{1 - \lambda^{-2}}
+  \;\le\; 31\, \lambda^{-2r} .
+\]
+Truncating the support from above only helps, and the degenerate
+point-mass cases are trivial.
+
+(b) On widths $m \le s/2$ both conditionals are supported (the largest
+admissible width is at least $3s/4$), both blocks satisfy
+$a, a' \ge s/8 \ge 1$, so no orientation constraint is active and
+$\nu$ is the same, while the factors $1 - \lambda^{-2a}$ of the two
+conditionals differ by a multiplicative $1 \pm 3 \lambda^{-s/4}$. Widths
+above $s/2$ carry mass at most $31 \lambda^{-s/2 + 2}$ under either
+conditional, by (a). A ratio comparison on the common part plus the two
+tails gives total variation at most $40\, \lambda^{-s/4}$.
+\end{proof}
+
+\begin{lemma}[Coupling of the interface chain]
+\label{lem:coupling}
+There are absolute constants $C_0, c > 0$ such that for every $k \ge 2$
+and every $s \ge C_0 \log(k+1)$, the random-scan heat-bath interface
+chain satisfies
+\[
+  t_{\mathrm{mix}}\bigl(P^{\mathrm{HB}}, 1/4\bigr)
+  \;\le\; 2(k-1)\bigl(\lceil \log(k+1) \rceil + 4\bigr),
+  \qquad
+  \gamma\bigl(P^{\mathrm{HB}}\bigr) \;\ge\; \frac{c}{k \log(k+1)} .
+\]
+\end{lemma}
+
+\begin{proof}
+Run two copies $X$ and $Y$ from arbitrary states. At every step both
+copies update the \emph{same} uniformly chosen interface, and the two
+new (width, orientation) pairs are drawn from the maximal coupling of
+the two conditionals. Let $M = \lfloor s/4 \rfloor$, let each of phase 1
+and phase 2 last $T = (k-1)(\lceil \log(k+1) \rceil + 4)$ steps, and
+consider three events.
+
+First, in each phase every interface is selected at least once; missing
+one is a coupon-collector event of probability at most
+$(k-1) e^{-T/(k-1)} \le e^{-4}$ per phase.
+
+Second, every update in either phase lands at width at most $M$ in both
+copies. A single update fails with probability at most
+$31 \lambda^{-M + 1}$ by Lemma~\ref{lem:concentration}(a), whatever the
+neighbors are, so a union bound over at most $4T$ update-copies gives
+$124\, T \lambda^{-M + 1}$. An interface at which the update holds (its
+window is disconnected, which requires a neighboring interface of width
+$s$) already has width $0 \le M$. Hence after phase 1 every interface
+width in both copies is at most $M$, and this persists through phase 2.
+
+Third, every phase-2 update draws the same pair in both copies. Given
+all widths at most $M \le s/4$, no update holds (a hold needs a neighbor
+of width $s$), and Lemma~\ref{lem:concentration}(b) bounds the failure
+of each maximal coupling by $40 \lambda^{-s/4}$, so a union bound gives
+$40\, T \lambda^{-s/4}$.
+
+On the intersection of the three events, every phase-2 update leaves the
+updated interface equal in the two copies; in particular, after the last
+update of each interface the copies agree there, and that interface is
+not modified again. Since every interface is updated during phase 2,
+$X = Y$ after $2T$ steps. The total failure probability is at most
+$2 e^{-4} + 124\, T \lambda^{-M+1} + 40\, T \lambda^{-s/4} \le 1/4$
+once $s \ge C_0 \log(k+1)$ for an absolute $C_0$. The coupling
+inequality gives the mixing bound, and
+$t_{\mathrm{mix}}(1/4) \ge (t_{\mathrm{rel}} - 1) \log 2$ converts it
+into the gap bound.
+\end{proof}
+
+\begin{proof}[Proof of Theorem~\ref{conj:strip}]
+The chain $\bar P$ is exactly the random-scan heat-bath interface
+chain, so Lemma~\ref{lem:coupling} bounds its mixing time, and
+$t_{\mathrm{mix}}(1/4) \ge (t_{\mathrm{rel}} - 1) \log 2$ converts the
+bound into the gap bound. For smaller $s$ the chain is a finite,
+reversible, irreducible chain (Corollary~\ref{cor:strip-irred}), so its
+gap is positive.
+\end{proof}
+
+\begin{proof}[Proof of Corollary~\ref{cor:strip-mixing}]
+By Theorem~\ref{thm:conditional},
+$t_{\mathrm{mix}}(P, \epsilon) = t_{\mathrm{mix}}(\bar P, \epsilon)$,
+and $\bar P$ is exactly the random-scan heat-bath interface chain, so
+Lemma~\ref{lem:coupling} gives the mixing bound directly; the coupling
+bounds total variation itself, so no spectral argument and no laziness
+are needed. The finitely many $n$ with $s < C_0 \log(k+1)$ contribute a
+constant by Corollary~\ref{cor:strip-irred}, and $k = 2$ is
+Remark~\ref{rem:k2-trivial}. For the cost per step, $P_F$ runs Wilson's
+algorithm in every district and $P_M$ resamples one window, with the
+split distribution computed from Proposition~\ref{prop:windows} and the
+ladder recurrence.
+\end{proof}
+
+\done{Lemmas~\ref{lem:concentration} and~\ref{lem:coupling},
+Theorem~\ref{conj:strip}, and Corollary~\ref{cor:strip-mixing} are
+proved in full. Both estimates of Lemma~\ref{lem:concentration} are
+machine-verified with wide margins: the tail constant has a $33\%$
+cushion over all neighbor widths at $s \le 40$, and the measured merging
+total variation is three or more orders of magnitude below the stated
+bound (Section~\ref{sec:computation}, item 10).}
+
+\statusnote{Scope: the strip program is complete for exact balance; the
+$\varepsilon$-balanced variant of the classification is routine but not
+written. Torpidity examples of~\cite{charikar2023complexity} live on
+grid-\emph{like} planar families and do not touch strips; any claim
+beyond constant-height strips must engage the geometry
+of~\cite{cannon2024balanced} seriously. Square grids are stated as the
+open problem, not promised.}
+
+%═══════════════════════════════════════════════════════════════════════════════
+\section{Machine verification}
+\label{sec:computation}
+%═══════════════════════════════════════════════════════════════════════════════
+
+All computations are exhaustive (no sampling) and were performed in exact
+integer or rational arithmetic. Scripts are available from the author.
+
+\begin{enumerate}[1.]
+  \item \textbf{Torsor axioms (Theorem~\ref{thm:torsor}).} For the
+    $2 \times 3$ grid with $S$ a pair of opposite corners ($|\Fcal_S| =
+    21$) and with a root triple ($13$), the $3 \times 3$ grid with opposite
+    corners ($288$), and $K_4$ with an adjacent pair ($8$; here $G_S$ has
+    parallel edges): every generator acts as a permutation of
+    $\Tcal(G_S)$; the chip-firing relations hold, so the action factors
+    through $\Pick{G}$; generators commute; and the orbit of a single tree
+    has full size. Freeness follows from transitivity and
+    $|\Pick{G}| = |\Fcal_S(G)|$.
+  \item \textbf{Matrix-forest consistency.} For \emph{every} root set of
+    every test graph (triangle, $C_4$, $K_4$, $2\times 3$, $3 \times 3$;
+    $162$ root sets in total): $\det \Delta^{(S)} = |\Fcal_S(G)| = t(G_S)$,
+    and the Smith normal forms of $\Delta^{(S)}$ and of the reduced
+    Laplacian of $G_S$ agree.
+  \item \textbf{Fiber decomposition (Theorem~\ref{thm:fiber-decomp}).}
+    Verified by enumeration on five partitions of the $2 \times 3$ and
+    $3 \times 3$ grids ($\tau = 3, 4, 8, 45, 32$) and on a $6 \times 6$
+    quadrant instance ($\tau = 192^4 \cdot 108$).
+  \item \textbf{No algebraic shortcut for balance.} On the $2 \times 3$
+    grid with $S = $ opposite corners: of the $9$ partition fibers in
+    $\Pick{G} \cong$ ($21$ elements), none of the fibers of size $> 1$ is a
+    coset of a subgroup, and the union of the three balanced fibers is not
+    a coset. Moreover no group homomorphism $\PicO{G} \to \Pick{G}$ can
+    exist in general ($|{\Pick{}}| \nmid t(G)$ for $162$ of the tested root
+    sets, including the triangle with $k = 2$: $2 \nmid 3$).
+  \item \textbf{Irreducibility evidence.} On the $3 \times 3$ grid,
+    $k = 2$, no balance constraint: the boundary-restricted single-swap
+    chain on (tree, marked-edge) states is irreducible: all $1{,}536$
+    states form one class covering all $53$ connected $2$-partitions. With
+    exact balance ($k = 3$, districts of size $3$): the state graph has two
+    isolated states, but the main class covers all $10$ balanced
+    partitions, consistent with Conjecture~\ref{conj:irred} at the
+    partition level and a warning at the lifted level.
+  \item \textbf{Balanced partition counts on strips.} Exhaustive counts
+    of $|\Bcal_k^0(2 \times n)|$: for $k = 2$, exactly $n$ for all
+    $n \le 12$, matching Proposition~\ref{prop:strip-classify}; for
+    $k = 3$: $3, 9, 19, 33$ at $n = 3, 6, 9, 12$; for $k = 4$:
+    $5, 11, 25, 45, 77$ at $n = 4, 6, 8, 10, 12$, consistent with
+    $\Theta(n^{k-1})$ growth (constant second differences at $k = 3$,
+    cubic growth at $k = 4$).
+  \item \textbf{General classification
+    (Proposition~\ref{prop:strip-classify-k}).} The coded family equals
+    the brute-force set of balanced connected $k$-partitions, as sets of
+    partitions, for $k = 2, 3, 4$ at all admissible $n \le 12$, $k = 5$
+    at $n \in \{5, 10\}$ ($8$ and $64$ partitions), and $k = 6$ at
+    $n = 9$ ($41$ partitions); and $t(G[\xi_i]) = \hat t_{a_i}$ holds for
+    every district of every coded partition (matrix-tree check). The
+    balanced-forest multiplicities on $(k, n) = (3, 6)$ equal
+    $\prod_i \hat t_{a_i}$ for all $9$ partitions, confirming the
+    projected law.
+  \item \textbf{Interior windows (Proposition~\ref{prop:windows}).} On
+    $125$ pendant-ladder configurations ($w \le 6$, $p, q \le 3$, all
+    corner placements): the staircase family equals the brute-force set
+    of balanced splits, the split-count identity is exact for every
+    split, $t(H) = \hat t_w$, and the minimum splittability probability
+    is $0.400$ (proven bound $1/10$). The pendant-free rectangular cases
+    ($w = 4, 6, 8$; $56$, $780$, $10{,}864$ trees) give splittability
+    $0.786$, $0.764$, $0.763$ against the limit $1/\sqrt3 \approx
+    0.577$.
+  \item \textbf{Projected spectral gaps.} Exact diagonalization of
+    the heat-bath chain at the $(k, n)$ pairs of the table in
+    Section~\ref{subsec:strips}: reversible to machine precision,
+    irreducible everywhere, and $\gamma(\bar P) \to 1/(k-1)$ as $n$
+    grows.
+  \item \textbf{Coupling estimates
+    (Lemma~\ref{lem:concentration}).} Exact conditionals at all
+    admissible neighbor widths for $s \le 40$: the tail bound holds with
+    maximum ratio $0.67$ of the stated constant, and the merging total
+    variation at $s = 16, 24, 32, 40$ is smaller than $\lambda^{-s/4}$
+    by three or more orders of magnitude.
+  \item \textbf{Tree-based kernel freeze
+    (Remark~\ref{rem:tree-kernels}).} The through-the-current-split
+    merge--split kernel satisfies detailed balance to machine precision,
+    yet its off-diagonal support is empty at every tested size: at
+    $(k, n)$ with $s = 4, 6, 8$ the projected chain has spectral gap
+    exactly $0$ and is reducible.
+\end{enumerate}
+
+\done{All five computations were run to completion in July 2026.}
+\statusnote{Before submission: re-run the suite from a clean repository,
+commit the scripts (currently in a scratch directory), and add a $4 \times
+4$, $k = 2$ instance of item 5, which is within reach ($t(4\times 4)
+= 100{,}352$ trees; restrict to balanced marked states).}
+
+%═══════════════════════════════════════════════════════════════════════════════
+\section{Discussion}
+%═══════════════════════════════════════════════════════════════════════════════
+
+The division of labor proposed here is strict: algebra handles everything
+that is exactly solvable (uniformity on fibers, torsor navigation,
+within-fiber waste, which Lemma~\ref{lem:collapse} eliminates rather than
+mitigates), and the remaining difficulty is a spectral gap estimate for an
+explicit chain on an explicit state space, which
+Section~\ref{sec:targets} supplies on strips
+(Theorem~\ref{conj:strip}). We emphasize what the collapse lemma does
+\emph{not} do. It does not make the projected chain fast; torpidity
+examples~\cite{charikar2023complexity} project too. It makes the projected
+chain the \emph{whole} problem, which no existing analysis of a balanced
+chain achieves. With the strip program complete, genuine two-dimensional
+grids are the central open problem.
+
+Two further directions are natural. First, the multi-sink torsor suggests
+global $P_M$ moves: resample the entire forest conditioned on a root set
+via Wilson on $G_S$, with roots re-drawn from a suitable distribution; the
+acceptance ratio is computable by Theorem~\ref{thm:fiber-decomp}, and such
+moves may shortcut the interface-by-interface diffusion on strips. Second,
+the merge--split ledger of Xu's partition divisors (the minimal effective
+divisor $D^\xi$ with $\deg D^\xi = |\partial \xi|$, and the merge formula
+of \cite[Cor.~3]{xu2011partitions}; see also the resolution theorems
+of~\cite{manjunath2015minimal, mohammadi2014divisors}) provides an exact
+algebraic bookkeeping of merge--split paths that may serve canonical-path
+constructions on general planar graphs.
+
+\missing{Decide, after Theorem~\ref{conj:strip} is resolved, whether the
+global-move variant belongs in this paper or the next one.}
+
+%═══════════════════════════════════════════════════════════════════════════════
+\appendix
+\section{Status}
+\label{app:status}
+%═══════════════════════════════════════════════════════════════════════════════
+
+\begin{center}
+\begin{tabular}{p{7.6cm} p{6.8cm}}
+\hline
+\textbf{Item} & \textbf{Status} \\
+\hline
+Thm~\ref{thm:torsor} (multi-sink torsor, (i)--(iii)) &
+  \textcolor{donecol}{Proved in full; machine-verified.} \\
+Rem.~\ref{rem:dhar} (multi-sink Dhar) &
+  \textcolor{donecol}{Immediate from Thm~\ref{thm:torsor}; verified.} \\
+Cor.~\ref{cor:sampling}(a) (Wilson exact sampling) &
+  \textcolor{donecol}{Proved (citation to Wilson '96).} \\
+Cor.~\ref{cor:sampling}(b) (navigation) &
+  \textcolor{donecol}{Proved as stated;}
+  \textcolor{notecol}{torsor discrete-log deliberately avoided.} \\
+Thm~\ref{thm:fiber-decomp} (fiber decomposition) &
+  \textcolor{donecol}{Proved in full; verified numerically.} \\
+Prop.~\ref{prop:resampler} (exact fiber resampler) &
+  \textcolor{donecol}{Proved in full.} \\
+Lem.~\ref{lem:collapse} (fiber collapse, (a)--(d)) &
+  \textcolor{donecol}{Proved in full.} \\
+Thm~\ref{thm:conditional} (conditional mixing theorem) &
+  \textcolor{donecol}{Proved in full (conditional on projected gap).} \\
+$P_M$ specification, MH correction details (\S\ref{subsec:pm}) &
+  \textcolor{misscol}{Write out the exact proposal/acceptance formulas;
+  routine but must be in the paper.} \\
+Conj.~\ref{conj:irred} step 1 ($k=3$ rectangles) &
+  \textcolor{misscol}{Open; adapt \cite[App.~B]{akitaya2026bud};
+  first priority.} \\
+Conj.~\ref{conj:irred} steps 2--3 (general $k$) &
+  \textcolor{misscol}{Open; competition risk (BUD authors).} \\
+BUD $\to$ merge--split transfer ($k=2$ base case) &
+  \textcolor{misscol}{Believed routine via \cite[Lem.~A.3--A.5]{akitaya2026bud};
+  write it.} \\
+Thm~\ref{conj:strip} step 1, $k = 2$: classification
+(Prop.~\ref{prop:strip-classify}, exactly $n$ staircases) and stationary
+law (Prop.~\ref{prop:strip-law}) &
+  \textcolor{donecol}{Proved in full; counts machine-verified to
+  $n = 12$.} \\
+$k = 2$ triviality of merge--split (Rem.~\ref{rem:k2-trivial});
+Theorem~\ref{conj:strip} restated for $k \ge 3$ &
+  \textcolor{donecol}{Done.} \\
+Thm~\ref{conj:strip} step 1, $k \ge 3$: general classification,
+parities, product-form stationary law
+(Prop.~\ref{prop:strip-classify-k}) &
+  \textcolor{donecol}{Proved in full; set equality machine-verified for
+  $k \le 6$.} \\
+Strip irreducibility for all $k$, exact balance, diameter $\le 2(k-1)$
+(Cor.~\ref{cor:strip-irred}) &
+  \textcolor{donecol}{Proved in full.} \\
+$P_M$ implementability audit: tree-based MH kernels frozen under
+exact balance; theorem chain switched to window heat-bath
+(Rem.~\ref{rem:tree-kernels}) &
+  \textcolor{donecol}{Done; freeze machine-verified at $s = 4, 6, 8$.} \\
+Thm~\ref{conj:strip} step 2 on rectangular windows: split identity,
+constant split probability, $\mathrm{poly}$-accurate proposal
+(Lem.~\ref{lem:split}) &
+  \textcolor{donecol}{Proved in full; machine-verified $w = 4, 6, 8$.} \\
+Thm~\ref{conj:strip} step 2 on interior windows: shapes, split
+classification, splittability $\ge 1/10$
+(Prop.~\ref{prop:windows}) &
+  \textcolor{donecol}{Proved in full; verified on $125$
+  configurations.} \\
+Thm~\ref{conj:strip} step 3: concentration + coupling
+(Lems~\ref{lem:concentration}, \ref{lem:coupling}) &
+  \textcolor{donecol}{Proved in full; estimates machine-verified with
+  wide margins.} \\
+Thm~\ref{conj:strip} and Cor.~\ref{cor:strip-mixing}: unconditional
+strip mixing, $O(k \log k)$ steps, near-linear total time &
+  \textcolor{donecol}{Proved in full: the headline theorem.} \\
+Exact gap diagonalization ($k = 3, 4, 5$; $n \le 24$) &
+  \textcolor{donecol}{Done; table in \S\ref{subsec:strips}.} \\
+$4 \times 4$ balanced irreducibility computation &
+  \textcolor{misscol}{Not yet run; feasible.} \\
+Scripts committed to repository &
+  \textcolor{misscol}{Currently in session scratch directory.} \\
+Related-work completeness pass (incl.\ any 2026 preprints) &
+  \textcolor{misscol}{Re-sweep arXiv before submission.} \\
+Remove inline status boxes and the WORKING DRAFT banner &
+  \textcolor{misscol}{Before submission.} \\
+\hline
+\end{tabular}
+\end{center}
+
+\paragraph{Reading order for finishing the paper.}
+(1) Theorem~\ref{conj:strip} step 2 is the pivot: if the one-interface
+split-probability bound works out on strips, everything else is assembly
+and the paper's headline becomes Corollary~\ref{cor:strip-mixing}
+unconditionally for $k = 2$; submit to SODA/STOC. (2) If step 2 stalls,
+the fallback paper is Sections~\ref{sec:torsor}--\ref{sec:collapse} plus
+Conjecture~\ref{conj:irred} step 1 proved (irreducibility, $k = 3$
+rectangles, exact balance): a coherent algorithms paper for ESA/SODA.
+(3) The infrastructure alone (Sections~\ref{sec:torsor}--\ref{sec:fiber})
+is the minimal publishable unit, as a combinatorics note.
+
+\begin{thebibliography}{99}
+
+\bibitem{akitaya2026bud}
+H.~A. Akitaya, S.~Cannon, G.~Herschlag, G.~Schoenbach, K.~Tapp, and
+  J.~Tucker-Foltz.
+\newblock The balanced up-down walk.
+\newblock \emph{arXiv preprint arXiv:2602.11993}, 2026.
+
+\bibitem{anari2021logconcave}
+N.~Anari, K.~Liu, S.~{Oveis Gharan}, C.~Vinzant, and T.-D. Vuong.
+\newblock Log-concave polynomials {IV}: approximate exchange, tight mixing
+  times, and near-optimal sampling of forests.
+\newblock In \emph{Proceedings of the 53rd Annual ACM SIGACT Symposium on
+  Theory of Computing (STOC '21)}, pages 408--420, 2021.
+
+\bibitem{autry2020multiscale}
+E.~A. Autry, D.~Carter, G.~Herschlag, Z.~Hunter, and J.~C. Mattingly.
+\newblock Multi-scale merge-split {M}arkov chain {M}onte {C}arlo for
+  redistricting.
+\newblock \emph{arXiv preprint arXiv:2008.08054}, 2020.
+
+\bibitem{baker2018bernardi}
+M.~Baker and Y.~Wang.
+\newblock The {B}ernardi process and torsor structures on spanning trees.
+\newblock \emph{International Mathematics Research Notices},
+  2018(16):5120--5147, 2018.
+
+\bibitem{cannon2024balanced}
+S.~Cannon, W.~Pegden, and J.~Tucker-Foltz.
+\newblock Sampling balanced forests of grids in polynomial time.
+\newblock In \emph{Proceedings of the 56th Annual ACM Symposium on Theory of
+  Computing (STOC '24)}, pages 1676--1687, 2024.
+
+\bibitem{chan2015rotor}
+M.~Chan, T.~Church, and J.~A. Grochow.
+\newblock Rotor-routing and spanning trees on planar graphs.
+\newblock \emph{International Mathematics Research Notices},
+  2015(11):3225--3244, 2015.
+
+\bibitem{charikar2023complexity}
+M.~Charikar, P.~Liu, T.~Liu, and T.-D. Vuong.
+\newblock On the complexity of sampling redistricting plans.
+\newblock \emph{arXiv preprint arXiv:2206.04883}, 2023.
+
+\bibitem{chebotarev2006forest}
+P.~Chebotarev and E.~Shamis.
+\newblock Matrix-forest theorems.
+\newblock \emph{arXiv preprint arXiv:math/0602575}, 2006.
+
+\bibitem{deford2021recom}
+D.~DeFord, M.~Duchin, and J.~Solomon.
+\newblock Recombination: a family of {M}arkov chains for redistricting.
+\newblock \emph{Harvard Data Science Review}, 3(1), 2021.
+
+\bibitem{deford2025cycle}
+D.~R. DeFord, G.~Herschlag, and J.~C. Mattingly.
+\newblock A cycle walk for sampling measures on spanning forests for
+  redistricting.
+\newblock \emph{arXiv preprint arXiv:2509.08629}, 2025.
+
+\bibitem{gallagher2025balanced}
+M.~Gallagher and K.~Tapp.
+\newblock Balanced spanning trees of the 2-by-$n$ grid.
+\newblock \emph{arXiv preprint arXiv:2508.10614}, 2025.
+
+\bibitem{ganguly2023rotor}
+A.~Ganguly and A.~McDonough.
+\newblock Rotor-routing induces the only consistent sandpile torsor structure
+  on plane graphs.
+\newblock \emph{Forum of Mathematics, Sigma}, 11:e78, 2023.
+
+\bibitem{holroyd2008chip}
+A.~E. Holroyd, L.~Levine, K.~M\'esz\'aros, Y.~Peres, J.~Propp, and D.~B.
+  Wilson.
+\newblock Chip-firing and rotor-routing on directed graphs.
+\newblock In \emph{In and Out of Equilibrium 2}, volume~60 of \emph{Progress
+  in Probability}, pages 331--364. Birkh\"auser, Basel, 2008.
+
+\bibitem{madras2002decomposition}
+N.~Madras and D.~Randall.
+\newblock {M}arkov chain decomposition for convergence rate analysis.
+\newblock \emph{Annals of Applied Probability}, 12(2):581--606, 2002.
+
+\bibitem{manjunath2015minimal}
+M.~Manjunath, F.-O. Schreyer, and J.~Wilmes.
+\newblock Minimal free resolutions of the {$G$}-parking function ideal and
+  the toppling ideal.
+\newblock \emph{Transactions of the American Mathematical Society},
+  367(4):2853--2874, 2015.
+
+\bibitem{mew}
+A.~McWhorter and D.~DeFord.
+\newblock The {M}arked {E}dge {W}alk: a novel {MCMC} algorithm for sampling
+  of graph partitions.
+\newblock \emph{arXiv preprint arXiv:2510.17714}, 2025.
+
+\bibitem{mohammadi2014divisors}
+F.~Mohammadi and F.~Shokrieh.
+\newblock Divisors on graphs, connected flags, and syzygies.
+\newblock \emph{International Mathematics Research Notices},
+  2014(24):6839--6905, 2014.
+
+\bibitem{shokrieh2021torsor}
+F.~Shokrieh and C.~Wright.
+\newblock Torsor structures on spanning trees.
+\newblock \emph{arXiv preprint arXiv:2103.10370}, 2021.
+
+\bibitem{wilson1996generating}
+D.~B. Wilson.
+\newblock Generating random spanning trees more quickly than the cover time.
+\newblock In \emph{Proceedings of the 28th Annual ACM Symposium on Theory of
+  Computing (STOC '96)}, pages 296--303, 1996.
+
+\bibitem{xu2011partitions}
+T.~Xu.
+\newblock \emph{Graph Partitions and Free Resolutions of Toppling Ideals}.
+\newblock Bachelor's thesis, Reed College, 2011.
+
+\end{thebibliography}
+
+\end{document}

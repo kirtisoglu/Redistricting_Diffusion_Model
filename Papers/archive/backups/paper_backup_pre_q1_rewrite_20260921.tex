@@ -1,0 +1,2337 @@
+\documentclass[11pt]{article}
+
+\usepackage{amssymb,amsmath,amsfonts,amsthm}
+\usepackage{latexsym}
+\usepackage{graphics}
+\usepackage{indentfirst}
+\usepackage{lmodern}
+\usepackage{hyperref}
+\usepackage{mathrsfs}
+\usepackage{array}
+\usepackage{mathtools}
+\usepackage{graphicx}
+\usepackage{setspace}
+\usepackage{enumerate}
+\usepackage{tikz}
+\usepackage{url,color}
+\usepackage{xcolor}
+\usepackage{chngcntr}
+\usepackage{multicol}
+\usepackage{comment}
+\usepackage{float}
+\usepackage{algpseudocode}
+\usepackage{subcaption}
+\usepackage[ruled]{algorithm2e}
+\usepackage{booktabs}
+\usepackage{caption}
+\usepackage[letterpaper,margin=2cm,top=2.5cm,bottom=2.5cm]{geometry}
+
+\AtBeginEnvironment{algorithm}{\setstretch{1.2}}
+
+\hypersetup{colorlinks=true,citecolor=blue,linkcolor=blue,urlcolor=blue}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Theorem environments
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{lemma}{Lemma}[section]
+\newtheorem{proposition}{Proposition}[section]
+\newtheorem{corollary}{Corollary}[section]
+\newtheorem{claim}{Claim}[section]
+\newtheorem{conjecture}{Conjecture}[section]
+\newtheorem{hypothesis}{Hypothesis}[section]
+\newtheorem{assumption}{Assumption}[section]
+\newtheorem{remark}{Remark}[section]
+\newtheorem{example}{Example}[section]
+\newtheorem{problem}{Problem}[section]
+\newtheorem{definition}{Definition}[section]
+\newtheorem{question}{Question}[section]
+\newtheorem{condition}{Condition}[section]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Math shorthands
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\newcommand{\N}{\mathbb{N}}
+\newcommand{\Z}{\mathbb{Z}}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\Q}{\mathbb{Q}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\C}{\mathbb{C}}
+\newcommand{\norm}[1]{\left\lVert#1\right\rVert}
+
+\allowdisplaybreaks
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Title, authors, abstract
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\title{Exact Reversibility and Ground-Truth Calibration\\
+       for Redistricting Markov Chains}
+
+\author{Alaittin K\i rt\i \c{s}o\u{g}lu \\
+        \small Department of Applied Mathematics, Illinois Institute of Technology \\
+        \small Chicago, IL 60616 \\
+        \small \texttt{kirtisoglu@hawk.iit.edu}}
+
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+Recombination (ReCom) chains are the standard Markov chain Monte
+Carlo tool for sampling political redistricting plans, and they are
+routinely run under a Metropolis filter that nominally targets a
+compactness-tempered distribution. We measure how far the family
+actually sits from that target, and we supply an optimization-based
+proposal with an exact correction toward a stated target. Both
+tools come from one convex energy on the merged pair of districts, a
+kernel-weighted Laplacian smoothness term plus a fidelity term that
+anchors each move to the current plan, under global population
+balance. Correcting the energy's randomized rounding with an exact
+Metropolis--Hastings step yields, to our knowledge, the first
+optimization-based redistricting proposal with a detailed-balance
+proof. On a fully enumerated $5 \times 5$ test bed, the plain and tempered
+ReCom chains sit 1.6 to 1.9 cut edges below the nominal
+tempered mean, yet land within 0.07 cuts of the
+spanning-tree-weighted quasi-targets computed by the Matrix--Tree
+theorem, while the exact chain converges in mean to its stated target
+in long runs. Solving the same
+energy as a mixed-integer program inside a tempered chain gives an
+anchored matheuristic refinement that cuts mean boundary edges by
+20.3 percent versus Tempered ReCom on Iowa (ten seeds, paired
+$p < 10^{-12}$), accepts arbitrary geographic kernels, and, refining
+Iowa's enacted plan, removes 15 of 47 cut edges while reassigning
+only 10 of 99 counties, reaching the same plan on every seed. A structural
+diagnostic of three enumerated spaces of valid plans finds genuine
+community structure but no narrow corridors, so global tree moves
+and anchored local refinements are complementary for dynamical
+rather than topological reasons. We also document two
+balance-constraint bug classes, one affecting bare GerryChain
+\texttt{recom} proposals, that materially change measured results.
+\end{abstract}
+
+%════════════════════════════════════════════════════════════════════════════════
+\section{Introduction}\label{sec:intro}
+%════════════════════════════════════════════════════════════════════════════════
+
+\subsection{The redistricting problem and ReCom's role}\label{sec:intro-problem}
+
+Political redistricting seeks a partition of a geographic region into
+electoral districts satisfying legal, demographic, and geometric
+requirements, namely contiguity, population balance, compactness, and
+preservation of communities of interest. Computational approaches model
+the problem on the dual adjacency graph $G = (V,E)$ of geographic units
+(precincts, census blocks, counties). A valid $k$-district plan is a
+partition
+\[
+  P = \{V_1, \ldots, V_k\}, \qquad \bigsqcup_{i=1}^k V_i = V,
+\]
+where each $G[V_i]$ is connected and the populations $p(V_i)$ are
+approximately equal. Let $\mathcal{P}_k(G)$ denote the space of valid
+$k$-district plans. The cardinality of $\mathcal{P}_k(G)$ is enormous.
+Even four congressional districts over the 99 counties of Iowa admit
+roughly $10^{24}$ plans~\cite{fifield2020essential}.
+
+Markov chain Monte Carlo (MCMC) has become the standard tool for
+sampling $\mathcal{P}_k(G)$. Early flip chains modify a single
+precinct's assignment per step~\cite{fifield2020automated} and mix
+slowly. The Recombination (ReCom) algorithm of DeFord, Duchin, and
+Solomon~\cite{deford2021recombination} performs multi-precinct updates
+by merging two adjacent districts, sampling a uniform random spanning
+tree of the merged subgraph, and cutting an edge to recover a balanced
+bipartition. ReCom dramatically improved the mixing efficiency of
+redistricting MCMC and is now the workhorse of the field, with
+reversible~\cite{cannon2022spanning} and multi-scale~\cite{autry2020multiscale}
+extensions.
+
+\textbf{ReCom's blind spot.} The uniform spanning-tree split treats
+every edge of the merged subgraph identically. The proposed
+bipartition is determined by the topology of the merged subgraph
+alone. Real geography is not topology-only. Shared boundary
+length, population density, demographic similarity, and
+administrative boundaries all carry signal that could shape the
+proposed split. Practitioners have felt this. County-weighted
+trees~\cite{clelland2022colorado} and GerryChain's region-aware
+surcharges~\cite{gerrychain2024} inject indicator-based edge weights
+into the tree draw, and SpecReCom~\cite{davies2025spectral} replaces
+the tree with a Fiedler-vector cut of a randomly weighted Laplacian.
+But these mechanisms are restricted (region indicators, hard-coded
+county kernels, or no kernel at all), none includes a
+locality-preserving fidelity term, and, as their authors
+acknowledge, each shifts the chain's stationary distribution in
+an uncharacterized, uncorrected way.
+
+\subsection{Contribution}\label{sec:intro-contribution}
+
+We introduce a kernel-aware local-refinement framework for ReCom-style
+MCMC. The core object is a single Laplacian energy on the merged-pair
+subgraph $H = G[V_i \cup V_j]$,
+\begin{equation}\label{eq:core-energy}
+  E(x) \;=\; \alpha\, x^\top L\, x \;+\; \beta\, \|x - x_0\|^2,
+  \qquad
+  (1 - \varepsilon)\bar p \;\le\; p^\top x \;\le\; (1+\varepsilon)\bar p,
+\end{equation}
+where $L$ is the kernel-weighted graph Laplacian of $H$, $x_0$ encodes
+the current bipartition, and the balance constraint is anchored to the
+global per-district ideal (Equation~\eqref{eq:balance-window}). The
+Laplacian term $x^\top L x$ counts (or approximates) cut edges between
+the two sides; the fidelity term $\|x - x_0\|^2$ penalizes deviation
+from the current assignment, enforcing locality of each move. The
+paper makes four contributions.
+
+\begin{enumerate}
+  \item \textbf{An exactly reversible optimization-based proposal}
+    (\S\ref{sec:qp-mh}). Solving the energy as a convex QP,
+    rounding with single-shot randomized rounding, and correcting
+    with an exact Metropolis--Hastings step yields Chain E (QP-MH),
+    to our knowledge the first optimization-based redistricting
+    proposal with a detailed-balance proof
+    (Proposition~\ref{prop:qpmh-db}). The proof identifies global
+    anchoring of the balance window as the property that keeps
+    forward and reverse solves symmetric, and we verify the
+    implementation's kernel satisfies detailed balance to machine
+    precision on an enumerated test case
+    (Remark~\ref{rem:qpmh-scope}).
+
+  \item \textbf{A ground-truth calibration of what the ReCom family
+    samples} (\S\ref{sec:exp-5x5}--\S\ref{sec:exp-longrun}). On a
+    fully enumerated $5 \times 5$ test bed we compute, by the
+    Matrix--Tree theorem, the spanning-tree-count measure that
+    RevReCom theory identifies as the natural target of tree-based
+    recombination. The plain and tempered ReCom chains land
+    essentially on their tree-weighted quasi-targets (the tempered
+    chain within 0.06 cut edges at $2 \times 10^5$ steps) and 1.6 to
+    1.9 cut edges below the nominal tempered target, and the gap does
+    not shrink with run length. It is convergence to the wrong
+    distribution, not slow mixing. The exact Chain E converges in
+    mean to its stated target, validating the correction end to
+    end. All comparisons in the paper use effective-sample-size
+    corrected inference and per-step balance audits, and we document
+    two balance-constraint bug classes, one affecting bare
+    GerryChain \texttt{recom} proposals used without a validator,
+    that materially change measured results.
+
+  \item \textbf{A kernel-aware anchored refinement}
+    (\S\ref{sec:model}--\S\ref{sec:iqp}). The Laplacian $L$ accepts
+    any nonnegative edge kernel as a first-class input; we
+    instantiate uniform, perimeter-weighted, and density-weighted
+    kernels. Prior weighted-proposal chains restrict to
+    region-indicator surcharges or hard-coded county kernels and
+    leave the induced distribution
+    uncharacterized~\cite{clelland2022colorado,gerrychain2024,
+    tapp2025compactness}; to our knowledge no prior MCMC
+    redistricting sampler accepts an arbitrary user-supplied edge
+    kernel at the proposal level while retaining an explicit
+    Metropolis correction against a stated target (contribution 1).
+    One energy yields three labeled regimes. Chain B relaxes to the
+    unit cube with Cheeger-sweep rounding (an exploratory heuristic
+    that turns out to add nothing significant, and we report it as
+    such); Chain C solves the same energy as a convex MIQP inside a
+    tempered chain, a \emph{matheuristic} ensemble generator in the
+    lineage of optimization-based
+    recombination~\cite{brous2025recom,cannon2023voting}, not a
+    sampler (\S\ref{sec:chain-c-honest}); Chain E is the corrected
+    sampler of contribution 1. On Iowa ($k = 4$,
+    $\varepsilon = 0.05$), Chain C reduces mean cut edges by
+    $20.3\%$ versus Tempered ReCom on every one of ten seeds
+    (paired $p < 10^{-12}$). A simulated-annealing baseline we
+    report, and argue this literature should always report, matches
+    its best plan quality at a fraction of the cost, so Chain C's
+    value is not raw compactness search. It is anchored, kernel-aware,
+    least-change refinement near a reference plan, and we quantify
+    that niche directly (\S\ref{sec:exp-leastchange}).
+
+  \item \textbf{A structural diagnostic of the partition fiber (the
+    set of valid plans), with a corrected intuition}
+    (\S\ref{sec:fiber-corridors}). On three fully enumerated test
+    beds, valid-plan space carries genuine community structure
+    (modularity $0.58$--$0.69$ against degree-preserving nulls of
+    $\sim 0.35$), but the folk picture of islands joined by narrow
+    corridors is refuted. Interfaces between communities are tens to
+    thousands of edges wide, nearly all community pairs are directly
+    connected, and the exact-balance fiber's 16 literal bridges each
+    dangle a single pendant vertex. A step-trace diagnostic shows
+    pure tree-move chains crossing community boundaries at
+    $13$--$15\%$ per step (near the community-blind baseline) while
+    optimization-guided local mixtures drop to $5$--$11\%$ and the
+    exact local chain to $0.3\%$. Local chains stall because their
+    moves are small, not because plan space is bottlenecked. (The
+    diagnostic isolates locality, not the fidelity term
+    specifically; the evidence that the $\beta$ anchor matters is
+    the Iowa compactness contrast, where the unanchored spectral
+    variant matches plain ReCom and only the anchored integer
+    refinement improves on it.)
+\end{enumerate}
+
+\paragraph{Positioning.} Compared with
+SpecReCom~\cite{davies2025spectral}, ours adds the fidelity term that
+turns a fresh spectral re-split into a local refinement, accepts
+arbitrary kernels, enforces balance inside the optimization, and (in
+Chain E) carries an exact MH correction. Unlike weighted-tree
+proposals~\cite{clelland2022colorado,gerrychain2024}, ours accepts
+arbitrary kernels rather than region indicators and pairs weighting
+with a characterized target. Where the matheuristic
+line~\cite{brous2025recom,cannon2023voting} uses accept-if-better
+local search, Chain C is a stochastic chain with an explicit
+diversity mechanism, and we benchmark it as an optimizer.
+Compared with RevReCom, Cycle Walk, Marked Edge Walk, and
+BUD~\cite{cannon2022spanning,deford2025cycle,mcwhorter2025marked,
+akitaya2026bud}, which achieve computable transition
+probabilities by lifting to spanning-forest state spaces, Chain E
+achieves the same property at the partition level via a deterministic
+convex program plus randomized rounding, and the two routes are
+complementary; their global moves could serve as the mobile
+component that our exact-but-local kernel lacks.
+
+\paragraph{Roadmap.}\label{sec:intro-roadmap}
+\S\ref{sec:related} reviews related work. \S\ref{sec:background} sets
+up notation, recalls ReCom, and characterizes the partition fiber's
+community macro-structure and the absence of narrow corridors on three test beds.
+\S\ref{sec:model} formulates the kernel-flexible QP-diffusion model in
+continuous (Chain B), integer (Chain C), and Metropolis-corrected
+(Chain E) forms, with Cheeger-sweep rounding, orphan-flip repair,
+hybrid composition with ReCom, and a brief spectral interpretation.
+\S\ref{sec:experiments} reports balance-audited, ESS-corrected
+empirical results, beginning with the ground-truth calibration on
+the enumerated $5 \times 5$ fiber, then compactness and optimizer
+baselines on Iowa, scale validation on the North Carolina precinct
+graph, the multi-kernel showcase, and the least-change refinement
+experiment. \S\ref{sec:discussion}
+discusses roles, trade-offs, and limitations;
+\S\ref{sec:conclusion} concludes. Appendices contain algorithm
+details, hyperparameter tables, full sweep tables, and a
+reproducibility checklist.
+
+%════════════════════════════════════════════════════════════════════════════════
+\section{Related work}\label{sec:related}
+%════════════════════════════════════════════════════════════════════════════════
+
+\paragraph{MCMC for redistricting.}\label{sec:related-mcmc}
+
+Early MCMC for redistricting framed the problem as a graph cut and used
+single-unit flip chains~\cite{fifield2020automated} or
+Swendsen--Wang-style large-swap moves. Flip chains mix poorly and
+produce highly irregular districts~\cite{deford2021recombination,
+najt2024empirical}. ReCom~\cite{deford2021recombination} introduced
+the spanning-tree merge-split move and is now standard. Extensions
+include Multi-Scale Merge--Split~\cite{autry2020multiscale} preserving
+nested communities (counties, precincts), Forest ReCom~\cite{autry2023metropolized},
+Sequential Monte Carlo~\cite{mccartan2023sequential}, multiscale
+parallel tempering~\cite{chuang2025multiscale}, and reversible
+recombination~\cite{cannon2022spanning} targeting the canonical
+spanning-tree distribution. A consistent theme of the 2022--2026
+literature is that a sampler is only as defensible as its target.
+RevReCom~\cite{cannon2022spanning}, Metropolized forest
+recombination~\cite{autry2023metropolized}, the cycle
+walk~\cite{deford2025cycle}, and the marked edge
+walk~\cite{mcwhorter2025marked} all pay a structural price (lifted
+state spaces, spanning-forest counting) precisely to keep transition
+probabilities computable. Mixing-time bounds remain open for
+all variants in the practical regime; Akitaya et
+al.~\cite{akitaya2022reconfiguration} prove that even deciding
+reachability between balanced partitions under recombination is
+PSPACE-complete.
+
+\paragraph{Weighted and geography-aware proposals.}\label{sec:related-weighted}
+
+Edge weighting inside the ReCom proposal is not new, and we position
+our work against it explicitly. Clelland et
+al.~\cite{clelland2022colorado} replace the proposal's edge-weighting
+function with \emph{county-weighted trees} (intra-county edge
+weights drawn from the uniform distribution $\mathcal{U}[0, w]$ for a tunable scalar $w$) to reduce county splits in Colorado ensembles. GerryChain's
+region-aware ReCom~\cite{gerrychain2024} implements the same idea.
+User-specified surcharges are added to the randomized Kruskal weights
+for edges crossing designated region boundaries. Tapp~\cite{tapp2025compactness}
+modifies the ReCom tree-and-cut step to improve shape-based
+compactness at the proposal level. In all three, the weighting is an
+indicator- or attribute-indexed heuristic, and (as their authors
+acknowledge) the induced stationary distribution is uncharacterized
+and uncorrected. Conversely, the samplers with known targets cited
+above handle only unweighted spanning-tree/forest measures or other
+tree-count-based families. The gap this paper addresses sits at the
+intersection, namely a proposal family that accepts an \emph{arbitrary}
+nonnegative edge kernel as a first-class input, together with (for the
+Metropolis-corrected variant of \S\ref{sec:qp-mh}) an explicit
+accept/reject step against a stated target.
+
+\paragraph{Optimization-based districting and matheuristics.}\label{sec:related-opt}
+
+A parallel operations research (OR) literature treats districting as
+exact optimization. Examples include the Hess model lineage, contiguity-constrained
+MIPs~\cite{validi2022imposing}, and cut-edge minimization solved to
+optimality at county/tract scale~\cite{validi2022political}. Between
+the sampling and optimization families~\cite{becker2022redistricting},
+hybrids are emerging. Short bursts~\cite{cannon2023voting} use ReCom
+as a stochastic optimizer; Brous and Shmoys~\cite{brous2025recom}
+replace the spanning-tree re-split with a Gurobi integer program
+inside an accept-if-better local search for majority-minority
+districts. Our integer chain (\S\ref{sec:iqp}) is closest to this
+matheuristic line (it embeds convex MIQP local refinements inside a
+recombination chain) and we present it as an
+optimization-flavored ensemble generator, not a sampler with a
+stationarity guarantee (\S\ref{sec:chain-c-honest}). The proximal
+term $\beta\|x - x_0\|^2$ is the quadratic analogue of local
+branching~\cite{fischetti2003local}, imposing a soft trust region
+around the incumbent.
+
+\paragraph{Spectral partitioning and diffuse-interface models.}\label{sec:related-spectral}
+
+Spectral graph partitioning has a long history in image segmentation
+and clustering~\cite{shi2000normalized}. In redistricting, the recent
+SpecReCom of Davies, Job, Kampbell, Kim, and
+Seo~\cite{davies2025spectral} (arXiv preprint, June 2025) replaces the
+random spanning tree with a Fiedler-vector sign cut on a randomly
+edge-weighted Laplacian of the merged pair, reporting roughly half the
+cut edges of RevReCom on a $56 \times 56$ grid and a Colorado planar
+graph. Plain SpecReCom sacrifices population balance, which their
+BalSpecReCom variant partially restores. Diffuse-interface models
+build on the Ginzburg--Landau (GL) functional, combining a smoothness
+term with a fidelity term; the Chan--Vese model~\cite{chan2001active}
+and Merriman--Bence--Osher (MBO) threshold dynamics implement this
+iteratively. Bertozzi and collaborators~\cite{bertozzi2012diffuse,
+merkurjev2013mbo} port the machinery to weighted graphs, where the
+smoothness term becomes the Laplacian quadratic form $x^\top L x$ and
+graph Tikhonov regularization~\cite{pilavci2021graph,shuman2013emerging}
+recovers heat-kernel smoothing. Jacobs and Walch~\cite{jacobs2018pde}
+brought threshold dynamics to redistricting before SpecReCom, using
+volume-constrained MBO via auction dynamics~\cite{jacobs2018auction}
+to generate compact equal-population maps. Theirs is a continuum PDE
+approach, not a graph-kernel one, and it is not embedded in MCMC. To our
+knowledge the present work is the first to use the \emph{graph} GL
+lineage (kernel-weighted Laplacian smoothing plus fidelity) as a
+proposal inside redistricting MCMC.
+
+\paragraph{Cut minimization and discrete compactness.}\label{sec:related-cut}
+
+The minimum graph cut~\cite{stoer1997simple,karger2000minimum} and its
+balanced variants such as normalized cut~\cite{shi2000normalized} are
+classical objectives. NP-hardness of balanced minimum
+cut~\cite{wagner1993between} motivates continuous relaxations, of
+which the Fiedler-vector cut and the Total Variation Isoperimetric
+Profile~\cite{deford2019total} are two well-known examples. The cut
+edge count $|\partial P|$ has been proposed as a discrete compactness
+measure for redistricting~\cite{duchin2018discrete} and shown to
+correlate well with classical geometric scores (Polsby--Popper, Reock)
+while being more stable under unit refinement.
+
+%════════════════════════════════════════════════════════════════════════════════
+\section{Background: ReCom and the partition fiber}\label{sec:background}
+%════════════════════════════════════════════════════════════════════════════════
+
+\subsection{Dual graph and \texorpdfstring{$k$}{k}-district plans}\label{sec:background-graph}
+
+Let $G = (V, E)$ be the dual graph of a state, with vertices
+representing geographic units (precincts, census blocks, counties) and
+edges encoding shared boundaries. Each vertex $v$ carries a population
+$p_v \ge 0$ and may carry additional attributes (demographic vectors,
+shapefile geometry). A \emph{$k$-district plan} is a partition
+$P = \{V_1, \ldots, V_k\}$ of $V$ such that each induced subgraph
+$G[V_i]$ is connected (\emph{contiguity}) and the populations satisfy
+\begin{equation}\label{eq:pop-balance}
+  (1 - \varepsilon)\bar p \;\le\; p(V_i) \;\le\; (1 + \varepsilon)\bar p,
+  \qquad \bar p := \frac{p(V)}{k},
+\end{equation}
+for a tolerance $\varepsilon \in [0, 1)$. We write $\mathcal{P}_k(G; \varepsilon)$
+for the set of valid plans. The \emph{cut edges} of a plan are
+\[
+  \partial P \;=\; \{(u,v) \in E : P(u) \ne P(v)\},
+\]
+and we call $|\partial P|$ the \emph{cut-edge count} of $P$. This
+quantity is the discrete analog of the perimeter of the district
+boundaries and serves as our primary compactness
+metric~\cite{duchin2018discrete}.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.7\textwidth]{fig/redistricting.png}
+  \caption{The dual graph of Iowa's 99 counties (left) and the four
+    congressional districts enacted after the 2010 census (right).
+    Nodes sit at county centroids; two counties are joined by an edge
+    when they share a boundary segment.}
+  \label{fig:iowa-dual}
+\end{figure}
+
+\subsection{Recombination (ReCom)}\label{sec:background-recom}
+
+Recombination~\cite{deford2021recombination} is a Markov chain on
+$\mathcal{P}_k(G; \varepsilon)$ whose single step is given in Algorithm~\ref{alg:recom}.
+
+\begin{algorithm}[H]
+\caption{Vanilla ReCom step (Chain V)}\label{alg:recom}
+\KwIn{Current plan $P$, dual graph $G$, balance tolerance $\varepsilon$.}
+\KwOut{Next plan $P'$.}
+Select two adjacent districts $V_i, V_j$ uniformly at random from boundary pairs;\\
+Form the induced subgraph $H = G[V_i \cup V_j]$;\\
+\Repeat{a cut $e^*$ exists yielding two $\varepsilon$-balanced components}{
+  Sample a uniform random spanning tree $T$ of $H$ via Wilson's algorithm~\cite{wilson1996generating};\\
+  Search edges of $T$ for a cut $e^*$ whose removal produces two $\varepsilon$-balanced components.
+}
+Define $V_i', V_j'$ as the two components of $T \setminus \{e^*\}$;\\
+$P' \gets P$ with $V_i, V_j$ replaced by $V_i', V_j'$;\\
+\Return $P'$.
+\end{algorithm}
+
+\noindent The tree-based proposal flips many precincts simultaneously
+between $V_i$ and $V_j$ while preserving contiguity automatically (any
+edge removal from a tree produces two connected components). This is
+the key advantage over single-precinct flip chains, which traverse the
+state space too slowly to be practically useful.
+
+\textbf{Chains compared.} We compare six chains, three of them from
+this work (Table~\ref{tab:five-chains}).
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{llll}
+\toprule
+Chain & Method & Mechanism & Stationarity claim \\
+\midrule
+V & Vanilla ReCom~\cite{deford2021recombination} & spanning-tree split, always accept & unknown target \\
+A & Tempered ReCom & ReCom + MH on cuts (symmetric-$q$) & approximate \\
+B & ReCom + QP-diffusion mix (this work) & continuous QP, Cheeger sweep, repair & none (heuristic) \\
+C & Tempered ReCom + IQP local (this work) & MIQP refinement, orphan-flip repair & none (matheuristic) \\
+D & ReCom + spectral mix (after~\cite{davies2025spectral}) & Fiedler + balanced sweep, no $\beta$, no repair & none (heuristic) \\
+E & QP-MH (this work, \S\ref{sec:qp-mh}) & QP + Bernoulli rounding + exact MH & \textbf{exact} \\
+\bottomrule
+\end{tabular}
+\caption{The six chains compared in this paper. The last column is the
+  chain's relationship to the tempered target
+  $\pi(P) \propto \exp(-\lambda|\partial P|)$. Only Chain E carries an
+  exact Metropolis--Hastings correction; Chains B--D are heuristics
+  whose output distributions we characterize empirically, and Chain A
+  relies on the symmetric-$q$ approximation
+  (\S\ref{sec:qp-mh}).}
+\label{tab:five-chains}
+\end{table}
+
+Tempered ReCom uses a Metropolis--Hastings filter targeting
+$\pi(P) \propto \exp(-\lambda |\partial P|)$ with the symmetric-$q$
+approximation (treating the forward and reverse proposal probabilities
+as equal); see Appendix~\ref{app:hyperparams} for the locked-in
+$\lambda = 0.10$. Our Chain D departs from published SpecReCom in one
+deliberate way. Instead of the sign split of the Fiedler vector (which
+ignores population balance), it runs our balance-constrained Cheeger
+sweep over the Fiedler order, closer in spirit to BalSpecReCom, so that all chains produce valid plans and the comparison isolates the
+role of the fidelity term. All chains also enforce the global
+two-sided balance window of Equation~\eqref{eq:balance-window} on
+every move; we note (\S\ref{sec:exp-balance}) that the raw GerryChain
+\texttt{recom} proposal alone does not.
+
+\paragraph{ReCom's two weaknesses.}\label{sec:background-weakness}
+ReCom is empirically strong but has two known weaknesses that motivate
+the present work.
+
+\textbf{(W1) Non-compact splits.} Uniform spanning trees of the
+merged subgraph favor topologically irregular partitions because the
+number of irregular subtrees is combinatorially much larger than the
+number of compact ones~\cite{deford2021recombination,deford2019total}.
+The cut edge is chosen \emph{after} the tree is drawn, so the
+proposal cannot anticipate compactness.
+
+\textbf{(W2) Kernel-blindness.} The uniform spanning tree weights
+every edge equally. Shared-boundary length, population density,
+demographic similarity, and administrative boundary attributes are
+ignored at the proposal level. They can only enter via post-hoc
+filtering, which raises rejection rates and is hard to tune.
+
+The diffusion-based proposal of \S\ref{sec:model} addresses both
+weaknesses by replacing the spanning-tree-cut step with a single
+convex optimization that minimizes a kernel-weighted Laplacian energy
+plus a locality-preserving fidelity term. The energy
+$x^\top L\, x = \sum_{(u,v) \in E} w_{uv} (x_u - x_v)^2$ equals the
+weighted cut count for binary $x$, so minimizing it directly minimizes
+the discrete perimeter.
+
+\subsection{Partition fiber structure: communities without bottlenecks}\label{sec:fiber-corridors}
+
+This subsection documents a structural diagnostic of the partition fiber
+$\mathcal{P}_k(G; \varepsilon)$ (the set of all valid plans), viewed as a graph under its minimal
+valid move relation. Two findings emerge, one positive and one
+negative, and we report both. Positively, all three enumerated fibers
+carry genuine mesoscale community structure, with modularity far above
+degree-preserving null models, and chains differ sharply in how often
+they cross community boundaries. Negatively, a plausible folk
+intuition (that the communities are ``islands'' joined by narrow
+corridors or bottleneck edges) is refuted by method-independent
+statistics. Community interfaces are wide, nearly all community pairs
+are directly connected, and the literal bridges of the exact-balance
+fiber turn out to be pendant vertices. The diagnostic still motivates
+the local-refinement design of \S\ref{sec:model}, and we believe both
+findings are of independent interest for analyzing redistricting
+MCMC.
+
+\paragraph{Three test beds.}\label{sec:fiber-testbeds}
+
+We construct three fully enumerated partition fibers spanning grid
+size, district count, and balance tolerance.
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{lrrrrrl}
+\toprule
+Fiber & Nodes & Edges & $k$ & $\varepsilon$ & Sizes & Adjacency \\
+\midrule
+$5 \times 5$, $\varepsilon = 0$    & 4\,006   & 13\,416  & 5 & 0    & \{5\}       & boundary swap \\
+$5 \times 5$, $\varepsilon = 0.20$ & 193\,128 & 969\,760 & 5 & 0.20 & \{4, 5, 6\} & single flip \\
+$4 \times 4$, $\varepsilon = 0.25$ & 1\,953   & 7\,024   & 4 & 0.25 & \{3, 4, 5\} & single flip \\
+\bottomrule
+\end{tabular}
+\caption{The three test-bed fibers. Adjacency is the \emph{minimal
+  valid move} of each fiber. At $\varepsilon = 0$ no single-vertex
+  reassignment preserves exact balance (it produces districts of sizes
+  4 and 6), so adjacency is the boundary \emph{swap}, which exchanges one
+  boundary vertex of district $a$ with one of district $b$, both
+  districts remaining connected. At $\varepsilon > 0$ adjacency is the
+  single \emph{flip}, which reassigns one boundary vertex, both affected
+  districts remaining connected and within size bounds. Cross-fiber
+  comparisons carry one caveat. The $\varepsilon = 0$
+  fiber lives under a different (two-vertex) move relation than the
+  $\varepsilon > 0$ fibers.}\label{tab:fibers}
+\end{table}
+
+For each fiber, all valid partitions are enumerated and the single-flip
+adjacency graph is built explicitly (enumeration runtimes on a 2024
+MacBook range from $\sim 5$ s for the $4 \times 4$,
+$\varepsilon = 0.25$ fiber to $\sim 50$ min for the $5 \times 5$,
+$\varepsilon = 0.20$ fiber; scripts accompany the replication
+materials).
+
+\paragraph{Community structure, validated against null models.}\label{sec:fiber-islands}
+
+Each fiber graph carries substantial mesoscale community structure
+under modularity maximization. We report the method per fiber (greedy
+modularity, Clauset--Newman--Moore, for the $\varepsilon = 0$ and
+$4 \times 4$ fibers; Louvain, resolution $1.0$, seed 42, for the large
+$\varepsilon = 0.20$ fiber), validate against degree-preserving
+rewiring nulls, and treat the specific community counts as
+method-dependent descriptive statistics.
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{lrrrlrrr}
+\toprule
+& \multicolumn{4}{c}{Community structure}
+& \multicolumn{3}{c}{Anti-bottleneck statistics} \\
+\cmidrule(lr){2-5}\cmidrule(lr){6-8}
+Fiber & Comm. & $Q$ & Null $Q$ & Method
+      & Pairs conn. & Inter-comm.\ edges & Width (med/max) \\
+\midrule
+$5 \times 5$, $\varepsilon = 0$    & 10 & 0.65 & 0.36 & CNM
+  & 15/15 & 18.3\% & 142 / 383 \\
+$5 \times 5$, $\varepsilon = 0.20$ & 26 & 0.69 & n/a  & Louvain
+  & 320/325 & 26.8\% & 667 / 3\,006 \\
+$4 \times 4$, $\varepsilon = 0.25$ & 7  & 0.58 & 0.34 & CNM
+  & 21/21 & 23.3\% & 71 / 186 \\
+\bottomrule
+\end{tabular}
+\caption{Left: community decompositions with degree-preserving null
+  baselines (mean $Q$ of CNM on double-edge-swap rewirings of the same
+  graph; the $193$k-node fiber's null is omitted for cost). Real $Q$
+  exceeds null $Q$ by $0.24$--$0.29$, so the community structure is
+  genuine, not a degree-sequence artifact. Counts vary with the
+  detection method and should be read qualitatively. Right:
+  the statistics that refute the corridor picture. Nearly every pair
+  of communities shares a direct interface (``pairs conn.''\ counts
+  the large-community pairs at $\varepsilon = 0$), interfaces are
+  tens to thousands of edges wide, and a fifth to a quarter of all
+  fiber edges run between communities. The exact-balance fiber's 16
+  literal single-edge bridges each split off a \emph{single vertex}
+  (pendant leaves), not an island, and the six large
+  $\varepsilon = 0$ communities have conductance $0.15$--$0.22$, an
+  order of magnitude above bottleneck territory.}
+\label{tab:communities}
+\end{table}
+
+\paragraph{No narrow corridors: a corrected intuition.}\label{sec:fiber-corridors-invariant}
+
+It is tempting to picture these communities as islands joined by a few
+narrow corridors, with bottleneck edges controlling passage. The
+method-independent statistics on the right of
+Table~\ref{tab:communities} refute that picture on all three
+fibers.
+
+Concretely, on the $\varepsilon = 0.20$ fiber, interfaces thinner than
+50 edges do exist (there are 16 of them), but they are simply the tail
+of a width distribution whose median is 667 and whose top interfaces
+carry $3\,000$ edges; a chain moving through this graph crosses
+between communities through the wide interfaces, and the thin tail is
+irrelevant to mixing. The correct summary of fiber macro-structure is
+therefore \emph{communities without bottlenecks}. Valid-plan space is
+regionally organized but well connected, and slow traversal by local
+chains (below) is a property of the \emph{dynamics}, not of corridor
+topology. This negative result matters for chain design. It says
+local chains stall not because the state space is nearly disconnected
+but because their moves are small and, in Chain E's case, because
+distant proposals are rarely accepted; global recombination moves, by
+contrast, relocate across communities in a single step.
+
+\paragraph{Chain step-trace diagnostic.}\label{sec:fiber-trace}
+
+The community decomposition supports a direct diagnostic for any
+redistricting chain. We label each visited partition by its
+greedy-modularity community on the $\varepsilon = 0$ fiber and record
+the \emph{jump rate}, the fraction of steps that move to a
+different community.
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{lrrr}
+\toprule
+Chain & Communities visited & Jump rate & Jumps in 1\,000 steps \\
+\midrule
+V: Vanilla ReCom        & 8/10 & 15.3\% & 153 \\
+A: Tempered ReCom       & 7/10 & 12.7\% & 127 \\
+B: QP-diffusion (50/50) & 6/10 & 4.6\%  & 46  \\
+C: ReCom + IQP local    & 6/10 & 10.5\% & 105 \\
+D: ReCom + spectral mix & 7/10 & 9.3\%  & 93  \\
+E: QP-MH exact          & 2/10 & 0.3\%  & 3   \\
+\bottomrule
+\end{tabular}
+\caption{Inter-community jump rates on the $5 \times 5$,
+  $\varepsilon = 0$ fiber (1\,000 steps per chain, seed 42, per-chain
+  RNG streams). A community-blind baseline crosses at roughly the
+  inter-community edge share (18.3\%,
+  Table~\ref{tab:communities}); ReCom variants (V, A) sit near it
+  at $\sim 13$--15\% per step, the local kernels (B, C, D) are
+  stickier at $\sim 5$--11\%, and the strictly local QP-MH chain (E)
+  almost never crosses, a property of its small accepted moves rather
+  than of any bottleneck in the fiber.}\label{tab:island-trace}
+\end{table}
+
+\textbf{Reading of the diagnostic.} ReCom relocates across
+communities in single steps; optimization-guided local kernels work
+within them; and the exact-but-strictly-local Chain E shows the
+failure mode of small accepted moves. (Per-chain step-traces, which
+show the same contrast as dwell patterns over time, are released as
+supplementary figures.) The regimes are complementary, and they
+suggest an explicit design principle. A good redistricting sampler
+should combine global moves that relocate across regions of plan
+space with local moves that refine within them; ReCom does the
+former, anchored local kernels the latter. This is the design of
+Chains B and C, whose every step is a random mixture of a ReCom
+(across-community) move and a diffusion (within-community) move. We
+note the diagnostic's limits (one run per chain on one fiber, and
+community labels from a specific detection method) and read it as
+motivating evidence, not proof.
+
+%════════════════════════════════════════════════════════════════════════════════
+\section{The QP-diffusion model: continuous and integer formulations}\label{sec:model}
+%════════════════════════════════════════════════════════════════════════════════
+
+\subsection{Locality kernels}\label{sec:kernels}
+
+Choosing the edge weights $w_{ij}$ is the most important modeling
+decision. The kernel determines what \emph{smoothness} means and
+therefore controls how district boundaries move under the relaxation.
+We restrict all weights to geographic neighbors,
+\begin{equation}\label{eq:kernel-local}
+  w_{ij} = 0 \quad \text{if } (v_i, v_j) \notin E,
+\end{equation}
+ensuring that diffusion operates only through geographic adjacency and
+preventing long-range interactions that could produce disconnected
+districts.
+
+\paragraph{Uniform kernel ($k_{\mathrm{unif}}$).} $w_{ij} = 1$ for
+every edge. The Laplacian $L$ is the combinatorial graph Laplacian;
+$x^\top L x$ is exactly the cut edge count. In the $\beta \to 0^+$
+limit the proposal approaches a balanced Fiedler-style split
+(\S\ref{sec:iqp-subsumption}).
+
+\paragraph{Perimeter kernel ($k_{\mathrm{perim}}$).} $w_{ij} = |\partial v_i \cap \partial v_j|$
+(shared-boundary length). The Laplacian quadratic form $x^\top L x$
+is then the \emph{geographic perimeter} of the partition, weighted by
+boundary segment length. This kernel discourages fragmented districts
+and favors boundaries that cut along short segments.
+
+\paragraph{Density kernel ($k_{\mathrm{dens}}$).} Let $\rho_v$ denote
+the population density at vertex $v$ (population per unit area). A
+Gaussian density kernel
+\[
+  w_{ij} \;=\; |\partial v_i \cap \partial v_j| \cdot
+  \exp\!\Bigl( -\frac{(\rho_i - \rho_j)^2}{\sigma^2} \Bigr)
+\]
+encourages cuts along sharp density gradients (urban--rural
+boundaries) while preserving the topological role of shared boundary
+length.
+
+\paragraph{Demographic kernel ($k_{\mathrm{demog}}$).} Let
+$d_v \in \R^m$ be a vector of demographic attributes. A Gaussian
+similarity kernel $w_{ij} = \exp(-\|d_i - d_j\|^2 / \sigma^2)$
+encourages communities of interest. We define this kernel for
+completeness but do not use it in our experiments, and a caution
+stronger than ``use as a soft regularizer'' is warranted. If the
+attribute vector encodes race, a proposal that systematically shapes
+district boundaries around racial similarity risks making race the
+predominant districting criterion, which triggers strict scrutiny
+under the \emph{Shaw v.\ Reno} line of racial-gerrymandering cases.
+Any practical use of demographic kernels should be reviewed against
+that doctrine, should document the kernel's weight relative to
+race-neutral criteria, and is more defensible for attributes that are
+legitimate districting factors in the jurisdiction (e.g., municipal
+membership, communities of interest as defined by state law).
+
+\paragraph{Composite kernels.} Linear combinations $w_{ij} = \sum_k a_k w_{ij}^{(k)}$
+with $a_k \ge 0$ remain valid, since they preserve nonnegativity and locality.
+
+\subsection{The convex QP}\label{sec:qp-model}
+
+Let $H = G[V_i \cup V_j]$ be the merged subgraph of two adjacent
+districts. Let $L_H$ be the kernel-weighted Laplacian of $H$, let
+$x_0 \in \{0,1\}^{|V_H|}$ encode the current bipartition (1 for
+vertices in $V_i$, 0 for vertices in $V_j$), and let $p$ be the
+population vector restricted to $H$. Fix weights $\alpha, \beta > 0$
+and balance tolerance $\varepsilon \in (0, 1)$. Crucially, the balance
+constraint is anchored to the \emph{global} per-district ideal
+$\bar p = p(V)/k$ from Equation~\eqref{eq:pop-balance}, not to
+$p(V_H)/2$. Both sides of the split must individually satisfy the
+plan-validity bound, which yields the two-sided window
+\begin{equation}\label{eq:balance-window}
+  \ell \;=\; \max\bigl((1-\varepsilon)\bar p,\; p(V_H) - (1+\varepsilon)\bar p\bigr),
+  \qquad
+  u \;=\; \min\bigl((1+\varepsilon)\bar p,\; p(V_H) - (1-\varepsilon)\bar p\bigr).
+\end{equation}
+Anchoring to $p(V_H)/2$ instead (a tempting simplification, and one
+present in an earlier version of our own implementation) only bounds
+the local split. Because $p(V_H)$ itself drifts as the chain moves
+population between pairs, district populations can ratchet outside the
+global tolerance by a factor of up to $(1+\varepsilon)$ per move on
+heterogeneous graphs. Our experiments audit the global bound at every
+step (\S\ref{sec:experiments}).
+
+\begin{definition}[Continuous QP-diffusion]\label{def:qp}
+The continuous QP-diffusion bipartition of $H$ is
+\begin{align}
+  x^\star \;=\; \arg\min_{x \in [0,1]^{|V_H|}} \;\;
+    & \alpha\, x^\top L_H\, x \;+\; \beta\, \|x - x_0\|_2^2 \label{eq:qp-obj} \\
+  \text{subject to} \;\;
+    & \ell \;\le\; p^\top x \;\le\; u,
+    \label{eq:qp-balance}
+\end{align}
+with $\ell, u$ as in Equation~\eqref{eq:balance-window}.
+\end{definition}
+
+The first term in~\eqref{eq:qp-obj} is the kernel-weighted Laplacian
+smoothness energy. For binary $x$ it equals the weighted cut count
+$\sum_{(u,v) \in E(H)} w_{uv}\,\mathbf{1}[x_u \ne x_v]$, and the
+continuous relaxation $x \in [0,1]^{|V_H|}$ extends this to a smooth
+objective on the unit cube. The second term is the \emph{fidelity term},
+which penalizes deviation from the current bipartition and ensures
+that each proposed move is local. The balance constraint enforces
+$\varepsilon$-balance on the proposed split.
+
+\begin{proposition}[Convexity and well-posedness]\label{prop:convex}
+The objective in~\eqref{eq:qp-obj} is strictly convex on
+$[0,1]^{|V_H|}$ (since $\beta > 0$ and $L_H$ is positive semidefinite).
+The feasible region defined by~\eqref{eq:qp-balance} is a nonempty
+polytope whenever the current plan is valid (it then contains $x_0$).
+Hence the QP admits a unique minimizer $x^\star$, computable in
+polynomial time by any convex QP solver.
+\end{proposition}
+
+\paragraph{Spectral interpretation.} Projecting the interior optimality
+condition $(\alpha L_H + \beta I) x^\star = \beta x_0$ onto the
+eigenbasis $\{\phi_k\}$ of $L_H$ with eigenvalues
+$0 = \lambda_1 \le \lambda_2 \le \cdots \le \lambda_n$ yields the
+closed-form frequency response
+\begin{equation}\label{eq:freq-response}
+  \hat x^\star_k \;=\; \frac{\beta}{\alpha \lambda_k + \beta}\,
+  \hat x_{0,k},
+  \qquad \hat y_k := \phi_k^\top y.
+\end{equation}
+The QP therefore acts as a low-pass spectral filter on the prior $x_0$,
+with cutoff controlled by the ratio $\alpha / \beta$. Equivalently, with
+$\tau := \alpha / \beta$, the optimum satisfies
+$(x^\star - x_0)/\tau = -L_H x^\star$, the implicit Euler
+discretization of the graph heat equation $\dot x = -L_H x$. Inspecting
+the leading eigenvectors $\phi_2, \phi_3, \ldots$ provides a sanity
+check on kernel choice. If they look like noise rather than coherent
+geographic regions, the chosen kernel is probably not informative.
+
+\subsection{Cheeger-sweep rounding and orphan-flip repair}\label{sec:rounding}
+
+The continuous optimum $x^\star \in [0,1]^{|V_H|}$ must be rounded to a
+binary bipartition. We use a \emph{Cheeger sweep}~\cite{chung1997spectral}. Sort the entries of $x^\star$ in descending order, and for each
+threshold $k = 1, \ldots, |V_H| - 1$ form the candidate set $S_k$ of the
+top-$k$ vertices. Among candidates that satisfy $\varepsilon$-balance,
+return the one minimizing the cut count
+$|\partial(S_k, V_H \setminus S_k)|$. Candidates with disconnected sides
+are passed through the orphan-flip repair below before evaluation.
+
+\begin{algorithm}[H]
+\caption{Cheeger-sweep rounding with orphan-flip repair}\label{alg:cheeger-sweep}
+\KwIn{Continuous optimum $x^\star \in [0,1]^{|V_H|}$, population
+  vector $p$, target $\bar p$, tolerance $\varepsilon$, merged subgraph $H$.}
+\KwOut{Binary bipartition $S \subset V_H$ or \texttt{FAIL}.}
+Sort $V_H$ by $x^\star$ descending; call the order $v_{(1)}, \ldots, v_{(|V_H|)}$;\\
+$\mathcal{C} \gets \emptyset$ \tcp*{candidates}
+\For{$k = 1$ \KwTo $|V_H| - 1$}{
+  $S_k \gets \{v_{(1)}, \ldots, v_{(k)}\}$;\\
+  \uIf{$p(S_k) \in [(1-\varepsilon)\bar p, (1+\varepsilon)\bar p]$ and both sides connected}{
+    Add $S_k$ to $\mathcal{C}$ with cut $|\partial(S_k, V_H \setminus S_k)|$;
+  }\ElseIf{$p(S_k)$ in balance and sides have $> 1$ components}{
+    $S_k' \gets$ orphan-flip repair of $S_k$ (Algorithm~\ref{alg:orphan-flip});\\
+    \If{$S_k'$ satisfies balance and connectivity}{
+      Add $S_k'$ to $\mathcal{C}$;
+    }
+  }
+}
+\lIf{$\mathcal{C} = \emptyset$}{\Return \texttt{FAIL}}
+\Return $\arg\min_{S \in \mathcal{C}} |\partial(S, V_H \setminus S)|$.
+\end{algorithm}
+
+The sweep can return a candidate $S_k$ whose induced subgraph $G[S_k]$
+or $G[V_H \setminus S_k]$ is disconnected. A single boundary vertex
+on the wrong side of the threshold is enough. Discarding such
+candidates outright would inflate the rejection rate; instead we repair
+them. The \emph{orphan-flip} routine identifies the disconnected
+components of each side, keeps the largest component, and flips every
+smaller (\emph{orphan}) component to the opposite side. Population
+balance is then re-verified; if the repair preserves both balance and
+connectivity, the repaired candidate enters the Cheeger sweep's
+candidate pool. Algorithm~\ref{alg:orphan-flip} formalizes this procedure.
+
+\begin{algorithm}[H]
+\caption{Orphan-flip repair}\label{alg:orphan-flip}
+\KwIn{Candidate bipartition $(S, V_H \setminus S)$.}
+\KwOut{Repaired bipartition or \texttt{FAIL}.}
+Identify connected components of $G[S]$ and $G[V_H \setminus S]$;\\
+\For{each side}{
+  Keep the largest connected component;\\
+  Flip every smaller component to the opposite side;
+}
+Verify both final sides are connected and $\varepsilon$-balanced;\\
+\lIf{verification fails}{\Return \texttt{FAIL}}
+\Return repaired $(S', V_H \setminus S')$.
+\end{algorithm}
+
+\textbf{Why repair matters.} On heterogeneous-population graphs such
+as Iowa, the unrepaired Cheeger sweep produces near-feasible
+candidates whose few orphan vertices (often singletons at the
+boundary) can be reassigned without affecting the cut count.
+Without repair, post-rounding rejection rates on Iowa run at 5--15\%;
+with repair, $<3\%$. SpecReCom~\cite{davies2025spectral} does not use
+repair (and we keep it out of our faithful Chain D
+implementation); without the $\beta$ fidelity term, repair tends to
+accept lower-quality cuts.
+
+\paragraph{On sweep guarantees.} The classical Cheeger
+inequality~\cite{chung1997spectral} bounds the conductance of the
+sweep cut of the \emph{Fiedler vector} as
+$\Phi(H) \le \sqrt{2 \lambda_2(L_H^{\mathrm{sym}})}$. We deliberately
+do not claim this bound for our rounded solution. The sweep here is
+applied to the constrained proximal optimum $x^\star$ of
+Definition~\ref{def:qp}, not to the Fiedler vector $\phi_2$, and the population-balance
+restriction on admissible thresholds voids the standard argument. The
+sweep should be read as a rounding heuristic whose output quality we
+measure empirically; when $\alpha/\beta \to \infty$ and the balance
+window is inactive, $x^\star$ tends toward the low-frequency eigenspace
+and the classical intuition is recovered, but we leave a quantitative
+statement to future work. A second caveat is that the sweep selects the
+candidate minimizing the \emph{unweighted} cut $|\partial(S_k, V_H
+\setminus S_k)|$ (the compactness metric of the paper) even when
+the QP energy uses a non-uniform kernel. Under non-uniform kernels the
+two objectives diverge, and a kernel-faithful variant would score
+candidates by the weighted cut; we flag this as a configuration choice
+in the multi-kernel experiments (\S\ref{sec:exp-multikernel}).
+
+\subsection{Hybrid composition with ReCom (Chain B)}\label{sec:hybrid-mh}
+
+Chain B's single step is a random mixture. With probability
+$p_R = 0.5$, take a Vanilla ReCom step (Algorithm~\ref{alg:recom});
+otherwise take a QP-diffusion step (Definition~\ref{def:qp} and
+Algorithm~\ref{alg:cheeger-sweep}). We state plainly what Chain B is
+and is not. \emph{Neither branch carries a Metropolis correction}, the ReCom branch always accepts (as in Vanilla ReCom), and the
+QP-diffusion branch applies the rounded, repaired split
+unconditionally. Chain B therefore has no stationarity claim beyond
+ergodicity; it is an exploratory heuristic whose empirical output
+distribution we characterize against enumerated ground truth in
+\S\ref{sec:exp-5x5}. The exactly corrected sampler built from the same
+proposal is Chain E (\S\ref{sec:qp-mh}).
+
+\begin{proposition}[Ergodicity of the hybrid]\label{prop:ergodic}
+If ReCom is ergodic on $\mathcal{P}_k(G; \varepsilon)$ (which holds
+under standard assumptions; see~\cite{deford2021recombination,
+cannon2024irreducibility}), then the mixture of ReCom and
+the QP-diffusion step with any $p_R \in (0, 1)$ is also ergodic.
+\end{proposition}
+
+\begin{proof}
+Write the mixture kernel as $K = p_R K_{\mathrm{R}} +
+(1 - p_R) K_{\mathrm{Q}}$. If $K_{\mathrm{R}}^{T}(P, P') > 0$ for
+some $T$, then $K^{T}(P, P') \ge p_R^{T}\, K_{\mathrm{R}}^{T}(P, P')
+> 0$, so irreducibility of ReCom implies irreducibility of the
+mixture. For aperiodicity, the ReCom branch already holds in place
+with positive probability. The current split of any selected pair is
+a balanced bipartition of the connected merged subgraph $H$, and it
+is produced whenever the sampled spanning tree consists of a spanning
+tree of each side joined by one crossing edge, an event of positive
+probability under the uniform tree measure. Hence
+$K_{\mathrm{R}}(P, P) > 0$, so $K(P, P) > 0$ for every $P$ and the
+chain is aperiodic.
+\end{proof}
+
+\subsection{The exactly reversible QP-MH chain (Chain E)}\label{sec:qp-mh}
+
+The deterministic rounding of \S\ref{sec:rounding} is what blocks a
+Metropolis correction. An argmin-plus-sweep map has zero reverse
+proposal probability, so the Hastings ratio degenerates. Replacing the
+sweep with \emph{single-shot randomized rounding} restores a tractable,
+everywhere-positive proposal density and yields an exactly reversible
+chain. One step of Chain E is as follows.
+
+\begin{enumerate}
+  \item Pick an adjacent district pair $(V_i, V_j)$ uniformly at random
+    from the $|\mathrm{bp}(P)|$ boundary pairs of the current plan $P$;
+  \item Solve the (deterministic) QP of Definition~\ref{def:qp} on
+    $H$ for $x^\star \in [0,1]^{|V_H|}$;
+  \item Draw the proposal $x' \in \{0,1\}^{|V_H|}$ by independent
+    Bernoulli rounding from the \emph{clipped} optimum,
+    $x'_v \sim \mathrm{Bern}\bigl(\mathrm{clip}(x^\star_v;
+    \delta, 1-\delta)\bigr)$ with $\delta = 10^{-12}$,
+    \emph{once}, with no retry on infeasibility. Clipping is part of the
+    proposal's definition. The QP optimum can have active box bounds
+    (coordinates exactly $0$ or $1$, e.g.\ at interior vertices pinned
+    by the fidelity term), and sampling from the same clipped vector
+    whose density enters the acceptance ratio is what makes the
+    proposal law and its stated density identical, with every binary
+    $x'$ receiving positive probability;
+  \item Accept with probability
+    \begin{equation}\label{eq:qpmh-accept}
+      \min\Bigl(1,\;
+      e^{-\lambda(|\partial P'| - |\partial P|)}\,
+      \frac{q(x_0 \mid P', \{i,j\})}{q(x' \mid P, \{i,j\})}\,
+      \frac{|\mathrm{bp}(P)|}{|\mathrm{bp}(P')|}\Bigr),
+    \end{equation}
+    where $q(\cdot \mid P, \{i,j\})$ is the Bernoulli product density
+    induced by the QP optimum at the corresponding state, and proposals
+    that violate contiguity or the balance
+    window~\eqref{eq:balance-window} are rejected outright.
+\end{enumerate}
+
+\begin{proposition}[Detailed balance of Chain E]\label{prop:qpmh-db}
+Chain E satisfies detailed balance with respect to
+$\pi(P) \propto \exp(-\lambda |\partial P|)$ restricted to
+$\mathcal{P}_k(G; \varepsilon)$.
+\end{proposition}
+
+Throughout, fix the deterministic edge kernel $w$ (weight jitter is
+never used in this chain), write $\Omega = \mathcal{P}_k(G;
+\varepsilon)$ for the space of valid plans, and for a plan $P$ and an adjacent
+pair $\{i,j\} \in \mathrm{bp}(P)$ write $H = V_i \cup V_j$ and let
+$x_0(P) \in \{0,1\}^{V_H}$ denote the indicator of $V_i$ on $H$ (the
+pair is drawn from a sorted list, so which district plays the role of
+$i$ is a deterministic function of the unordered pair). Say that
+$P' \in \Omega$ is \emph{pair-adjacent} to $P \in \Omega$ if
+$P' \ne P$, the two plans differ on exactly two districts $\{i,j\}$,
+and $H = V_i \cup V_j$ is connected. This relation is clearly
+symmetric in $P$ and $P'$.
+
+\begin{lemma}[Proposal regularity]\label{lem:qpmh-regular}
+Let $P, P' \in \Omega$ be pair-adjacent via districts $\{i,j\}$, and
+suppose $\beta > 0$. Then:
+\begin{enumerate}
+  \item[(i)] $\{i,j\}$ is the unique unordered pair whose selection
+    can generate the move $P \to P'$ or the move $P' \to P$, and it
+    is selectable from both endpoints:
+    $\{i,j\} \in \mathrm{bp}(P) \cap \mathrm{bp}(P')$.
+  \item[(ii)] The QP of Definition~\ref{def:qp} on $H$ with the
+    global window~\eqref{eq:balance-window} has the same (nonempty)
+    feasible set for the forward and reverse solves, and its optimum
+    is unique, hence a deterministic function of
+    $(\text{endpoint}, \{i,j\})$.
+  \item[(iii)] The clipped-Bernoulli density
+    $q(\cdot \mid \cdot, \{i,j\})$ is bounded below by
+    $\delta^{|V_H|} > 0$ on every binary labeling of $V_H$; in
+    particular $q(x_0(P') \mid P, \{i,j\}) > 0$ and
+    $q(x_0(P) \mid P', \{i,j\}) > 0$.
+\end{enumerate}
+\end{lemma}
+
+\begin{proof}
+(i) A step that selects pair $\{a,b\}$ relabels vertices only
+between districts $a$ and $b$ and changes no other district. If
+$P' \ne P$, at least one vertex of $H$ switched between $i$ and $j$,
+so districts $i$ and $j$ both changed; any generating pair must
+therefore equal $\{i,j\}$. For selectability, note that
+$(V_i, V_j)$ and $(V_i', V_j')$ are both bipartitions of the
+connected graph $H$ into nonempty parts (all four sets are nonempty
+districts of valid plans), and every such bipartition is crossed by
+at least one edge of $H$; hence the two districts are adjacent in
+both plans.
+
+(ii) The feasible set is $\{x \in [0,1]^{V_H} : \ell \le p^\top x
+\le u\}$ with $\ell, u$ given by~\eqref{eq:balance-window}. It
+depends only on $(H, \varepsilon, \bar{p})$, not on the endpoint, so
+the forward and reverse solves optimize over the same set. It is
+nonempty at both endpoints because the window
+of~\eqref{eq:balance-window} is precisely the condition that both
+sides of the split be valid districts, which $x_0(P)$ and $x_0(P')$
+satisfy by validity of $P$ and $P'$. This is where globality is
+essential. Anchoring the window to the merged-pair half
+$(1 \pm \varepsilon)\,p(V_H)/2$ instead lets a valid plan fail its
+own pair's window, zeroing a reverse density whose forward
+counterpart is positive and destroying reversibility outright. The
+objective $\alpha\, x^\top L_H x + \beta\, \|x - x_0\|^2$ has Hessian
+$2(\alpha L_H + \beta I) \succ 0$ for $\beta > 0$, so the minimizer
+over the (convex, compact, nonempty) feasible set exists and is
+unique, and it is a function of $(L_H, x_0, \ell, u)$ only. Since
+the kernel $w$ is deterministic, $L_H$ depends only on $H$, and
+$x_0$ only on the endpoint and the pair.
+
+(iii) Clipping maps the optimum into $[\delta, 1-\delta]^{V_H}$, so
+every Bernoulli factor of the product density lies in
+$[\delta, 1-\delta]$ and every outcome in $\{0,1\}^{V_H}$ has
+probability at least $\delta^{|V_H|}$.
+\end{proof}
+
+\begin{proof}[Proof of Proposition~\ref{prop:qpmh-db}]
+Let $K$ denote the transition kernel of Chain E and fix distinct
+$P, P' \in \Omega$. If $P$ and $P'$ are not pair-adjacent, no single
+step can produce either move. A step changes at most the two selected
+districts, so a generating pair would have to be the differing pair;
+if the plans differ on more than two districts no pair qualifies, and
+if the union $H$ of the two differing districts is disconnected, that
+pair is not adjacent in either plan and is never selected. Hence
+$K(P, P') = K(P', P) = 0$ and detailed balance holds trivially.
+
+Otherwise let $\{i,j\}$ be the unique generating pair, abbreviate
+$q_{\to} = q(x_0(P') \mid P, \{i,j\})$ and
+$q_{\gets} = q(x_0(P) \mid P', \{i,j\})$, and note that both are
+positive and finite by Lemma~\ref{lem:qpmh-regular}(ii)--(iii).
+Because the rounding is single-shot, $q_{\to}$ is the exact
+probability that the proposal from $P$ with pair $\{i,j\}$ equals
+$P'$. No renormalization by a feasibility event is involved (a
+retry-until-feasible loop would replace $q$ by a conditional law
+whose state-dependent normalizing constant does not cancel in the
+ratio), and clipping \emph{before} sampling makes the sampled law and
+the density in~\eqref{eq:qpmh-accept} the same object. Hence
+\[
+  K(P, P') \;=\; \frac{1}{|\mathrm{bp}(P)|}\; q_{\to}\;
+  \alpha(P, P'), \qquad
+  \alpha(P, P') = \min\Bigl(1,\;
+  \frac{\pi(P')}{\pi(P)}\,
+  \frac{q_{\gets}}{q_{\to}}\,
+  \frac{|\mathrm{bp}(P)|}{|\mathrm{bp}(P')|}\Bigr),
+\]
+using $\pi(P')/\pi(P) = e^{-\lambda(|\partial P'| - |\partial P|)}$.
+Multiplying through,
+\[
+  \pi(P)\, K(P, P') \;=\;
+  \min\Bigl(
+  \frac{\pi(P)\, q_{\to}}{|\mathrm{bp}(P)|},\;
+  \frac{\pi(P')\, q_{\gets}}{|\mathrm{bp}(P')|}
+  \Bigr),
+\]
+an expression symmetric under exchanging $(P, q_{\to})$ with
+$(P', q_{\gets})$. The identical computation started from $P'$ gives
+the same right-hand side, so
+$\pi(P) K(P, P') = \pi(P') K(P', P)$.
+
+It remains to check that the rejection pathways do not disturb this
+identity. A Bernoulli draw whose split leaves a side empty,
+disconnected, or outside the window~\eqref{eq:balance-window} is a
+proposal onto a state of zero target mass and is rejected with
+probability one, contributing only to the diagonal $K(P, P)$, for
+which detailed balance is vacuous; the same applies to in-space
+proposals rejected by~\eqref{eq:qpmh-accept}. Rejection on solver
+failure is symmetric because, by
+Lemma~\ref{lem:qpmh-regular}(ii), the solve is a deterministic
+function of $(H, \{i,j\}, \text{endpoint})$, so a failure that
+suppresses the move $P \to P'$ suppresses the reverse move
+identically. Detailed balance of $K$ with respect to $\pi$ on
+$\Omega$ follows, and with it stationarity of
+$\pi$~\cite{tierney1998note}.
+\end{proof}
+
+\begin{remark}[Scope, verification, and ergodicity]\label{rem:qpmh-scope}
+The proof treats the QP solve as exact; in floating point the
+minimizer is computed to solver tolerance, and determinism of the
+implementation (fixed kernel, no jitter, sorted pair enumeration) is
+what the argument actually uses. As an end-to-end check, we assembled
+the full transition kernel of the implementation on an exhaustively
+enumerated $2 \times 3$ grid ($k = 2$, 18 valid states) and verified
+$\pi(P)K(P,P') = \pi(P')K(P',P)$ entrywise, with maximum relative
+violation $1.5 \times 10^{-15}$ (machine precision;
+\texttt{db\_check\_2x3.py}). Detailed balance
+gives stationarity, not ergodicity. Within a selected pair every
+binary relabeling of $H$ has positive proposal probability by
+Lemma~\ref{lem:qpmh-regular}(iii), but irreducibility of Chain E
+across pairs on general $(G, k, \varepsilon)$ is not established, so
+convergence statements are for the chain restricted to its
+communicating class. On the enumerated $5 \times 5$ fiber the chain
+empirically reaches its target mean (\S\ref{sec:exp-longrun}), and
+the principled route to global mobility is the $\pi$-Metropolized
+mixture described below.
+\end{remark}
+
+Chain E trades mobility for exactness. Because a proposal must be
+feasible in a single Bernoulli draw, moves that flip many units are
+rarely accepted, and the chain behaves as a strictly local sampler
+(quantified in \S\ref{sec:exp-5x5}). We therefore present it as the
+\emph{correctness anchor} of the framework (the member of the family
+whose stationarity is provable) rather than as a practical
+standalone sampler. The principled route to mobility is precise.
+Mixing E with a global kernel preserves $\pi$ only if that kernel is
+\emph{also} $\pi$-invariant. RevReCom as published is reversible with
+respect to its spanning-tree measure, not our tempered $\pi$, so a
+naive E/RevReCom mixture would preserve neither; the correct
+construction Metropolizes RevReCom's move toward $\pi$ using its
+computable Hastings ratio~\cite{cannon2022spanning,autry2023metropolized}
+and mixes \emph{that} kernel with E. This is the natural next step
+(\S\ref{sec:disc-future}).
+
+\paragraph{On the tempered baseline (Chain A).} Our Tempered ReCom
+baseline applies the Metropolis filter
+$\min(1, \exp(-\lambda \Delta|\partial P|))$ over the ReCom proposal,
+i.e., it \emph{assumes a symmetric proposal}. ReCom's proposal is not
+symmetric; the true Hastings ratio involves spanning-tree counts of
+the affected districts~\cite{autry2023metropolized,cannon2022spanning}, so Chain A targets $\pi$ only approximately. On the enumerated
+$5 \times 5$ fiber this bias is visible and quantifiable
+(\S\ref{sec:exp-5x5}; empirical mean cuts $\approx 16.8$ against the
+exact target mean $18.56$); it is inherited from the spanning-tree
+proposal's own compactness preference, and correcting it requires the
+tree-count acceptance ratios of Metropolized forest
+recombination~\cite{autry2023metropolized}. We keep the symmetric-$q$
+baseline because it is what practitioners run, and we report its bias
+rather than hiding it.
+
+\subsection{The integer QP-diffusion (Chain C)}\label{sec:iqp}
+
+The integer counterpart of Definition~\ref{def:qp} replaces
+$x \in [0,1]^{|V_H|}$ with $x \in \{0, 1\}^{|V_H|}$ and solves the
+resulting mixed-integer convex quadratic program (MIQP) directly.
+
+\paragraph{Definition and solver.}\label{sec:iqp-def}
+
+\begin{definition}[Integer QP-diffusion]\label{def:iqp}
+The IQP local refinement of $H$ is
+\begin{align}
+  x^\star \;=\; \arg\min_{x \in \{0,1\}^{|V_H|}} \;\;
+    & \alpha\, x^\top L_H\, x \;+\; \beta\, \|x - x_0\|_2^2 \label{eq:iqp-obj} \\
+  \text{subject to} \;\;
+    & \ell \;\le\; p^\top x \;\le\; u,
+\end{align}
+with the same global-ideal balance window $(\ell, u)$ of
+Equation~\eqref{eq:balance-window} as the continuous case.
+\end{definition}
+
+The objective is convex quadratic and the variable is binary.
+Gurobi's MIQP solver handles this directly via branch-and-bound; in
+practice, a 5-second time limit per solve is rarely hit on Iowa-sized
+merged pairs ($\sim 30$--$60$ precincts).
+
+\paragraph{Subsumption of cut-min; relation to SpecReCom.}\label{sec:iqp-subsumption}
+
+\begin{proposition}[Special cases]\label{prop:iqp-special-cases}
+Setting $\alpha = 1$, $\beta = 0$, $w_{ij} \equiv 1$ in
+Definition~\ref{def:iqp} gives the classical minimum-cut integer
+program subject to the balance window. Hence Chain C subsumes
+the discrete cut-minimization MIP as a special case.
+\end{proposition}
+
+We are careful \emph{not} to claim the analogous statement for the
+continuous case. At $\beta = 0$ the relaxation of
+Definition~\ref{def:qp} is degenerate. Any feasible constant vector
+$c\mathbf{1}$ attains energy zero, so the minimizer carries no cut
+information and the sweep is undefined. SpecReCom's Fiedler direction
+arises from the Rayleigh quotient \emph{restricted to}
+$x \perp \mathbf{1}$, a constraint our proximal program does not
+impose; it is the fidelity term ($\beta > 0$) that breaks the constant
+degeneracy here, with $x_0$ playing the symmetry-breaking role that
+orthogonality plays in spectral partitioning. The precise relationship
+is that as $\beta \to 0^+$ with $x_0$ non-constant, the minimizer's
+projection off $\mathbf{1}$ aligns with the low-frequency eigenspace
+of $L_H$ (Equation~\eqref{eq:freq-response} with
+$\beta/(\alpha\lambda_k + \beta) \to 0$ fastest at high frequencies),
+so Chain B approaches a Fiedler-like split \emph{in direction} while
+retaining balance feasibility. This gives a BalSpecReCom-style variant rather
+than SpecReCom itself. Chain D implements that variant directly.
+
+\paragraph{Locality via the fidelity term.}\label{sec:iqp-locality}
+
+For $\beta = 0$, the IQP optimum is a minimum cut of $H$ subject only
+to population balance and may differ arbitrarily from $x_0$, the indicator of the current bipartition. For
+$\beta > 0$, the optimum is biased toward $x_0$, since any flip from $x_0$
+incurs a $\beta$-penalty per bit changed. This has three coupled
+benefits over $\beta = 0$:
+
+\begin{enumerate}
+  \item \textbf{Locality.} The proposed bipartition stays geographically
+    close to the current one, so the chain explores neighboring
+    plans rather than randomly resetting on each merge.
+  \item \textbf{Contiguity-friendliness.} Because $x_0$ encodes a
+    contiguous bipartition and the IQP optimum is biased toward $x_0$,
+    the optimum is mostly contiguous already; orphan-flip repair
+    needs only to fix a small number of boundary-flipping vertices.
+  \item \textbf{Lower rejection.} Post-rounding rejection on Iowa
+    drops from 5--15\% ($\beta = 0$) to $<3\%$ ($\beta = 1$) with
+    repair, while cut quality is preserved.
+\end{enumerate}
+
+\paragraph{One step of Chain C.}\label{sec:chain-c-step}
+A single step of Chain C wraps an outer Tempered ReCom move
+(Algorithm~\ref{alg:recom} plus the Metropolis--Hastings filter of
+\S\ref{sec:hybrid-mh}) around $n_{\mathrm{iqp}}$ deterministic
+IQP local-refinement passes. Each inner pass picks an adjacent district
+pair, solves the IQP on the merged subgraph, and applies orphan-flip
+repair; if the repair fails the inner pass leaves the plan unchanged.
+The full step is given as Algorithm~\ref{alg:chain-c}.
+
+\begin{algorithm}[H]
+\caption{One step of Chain C}\label{alg:chain-c}
+\KwIn{Current plan $P$, parameters $\alpha, \beta, n_{\mathrm{iqp}}, \lambda, \varepsilon$.}
+\KwOut{Next plan $P'$.}
+$P_0 \gets $ Tempered ReCom step (Chain A) applied to $P$\;
+$P_{\mathrm{curr}} \gets P_0$\;
+\For{$t = 1$ \KwTo $n_{\mathrm{iqp}}$}{
+  Select adjacent district pair $(V_i, V_j)$ uniformly from boundary pairs of $P_{\mathrm{curr}}$\;
+  Form $H = G[V_i \cup V_j]$, build kernel-weighted $L_H$\;
+  Solve IQP (Definition~\ref{def:iqp}) for $x^\star$\;
+  Apply orphan-flip repair (Algorithm~\ref{alg:orphan-flip})\;
+  \uIf{repaired bipartition feasible and connected}{
+    Update $V_i, V_j$ in $P_{\mathrm{curr}}$ to the new bipartition\;
+  }\Else{
+    $P_{\mathrm{curr}}$ unchanged\;
+  }
+}
+\Return $P' \gets P_{\mathrm{curr}}$.
+\end{algorithm}
+
+\paragraph{What Chain C is, and is not.}\label{sec:chain-c-honest}
+The IQP loop is \emph{deterministic} given the random pair choices. There is no Metropolis acceptance inside the loop, and the outer
+acceptance applies only to the Tempered ReCom move. We are explicit
+about the consequence. \textbf{Chain C is not a sampler for the
+tempered target} $\pi(P) \propto \exp(-\lambda|\partial P|)$, and no
+completion of the construction can make it one. A deterministic map
+$T$ composed after a $\pi$-invariant kernel preserves $\pi$ only if
+$T$ is itself $\pi$-preserving (essentially a $\pi$-preserving
+involution~\cite{tierney1998note}), whereas the IQP refinement is a
+many-to-one, cut-decreasing contraction onto local minima, the
+opposite of an involution. Nor can the refinement be folded into the
+proposal and Metropolized, since the reverse move would require the
+argmin at $P'$ to output the strictly worse plan $P$, an event of
+probability zero. The distributional signature of this bias is visible
+in our own ground-truth data (\S\ref{sec:exp-5x5}), where Chain C's cut
+marginal is shifted and sharply concentrated relative to Chain A's,
+despite the identical outer kernel.
+
+We therefore present Chain C as what it is, a \emph{matheuristic
+ensemble generator} in the lineage of ReCom-based
+optimization~\cite{cannon2023voting,brous2025recom}, an iterated
+local search whose stochastic component (the tempered outer move)
+maintains diversity while the embedded MIQP drives compactness. This
+is a legitimate and, as \S\ref{sec:experiments} shows, empirically
+powerful tool for producing high-quality compact plans and for
+seeding or stress-testing ensembles. What it does not provide is a
+defensible null distribution for outlier analysis; for that use case
+the field's requirements are exactly the known-target
+property~\cite{cannon2022spanning,mccartan2023sequential} that
+Chain E (\S\ref{sec:qp-mh}) preserves and Chain C deliberately trades
+away for optimization power.
+
+\paragraph{Trade-off: continuous vs.\ integer.}\label{sec:iqp-pareto}
+Table~\ref{tab:b-vs-c} summarizes the practical trade between the two
+regimes. The continuous relaxation is roughly $44\times$ cheaper per
+step in wall-clock, but on Iowa only the exact integer solve moves the
+compactness needle; the contrast is developed in
+\S\ref{sec:exp-compactness}.
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{lll}
+\toprule
+ & Chain B (continuous QP) & Chain C (integer IQP) \\
+\midrule
+Variable & $x \in [0,1]^n$ & $x \in \{0,1\}^n$ \\
+Solver & Convex QP (fast) & Convex MIQP (branch-and-bound) \\
+Per-step cost & $O(\text{nnz}(L_H))$ & $O$(MIQP, $\le 5$s limit) \\
+Cut quality (Iowa) & $-4.0\%$ vs A (n.s.) & $-20.1\%$ vs A ($d = -2.51$) \\
+Contiguity & after rounding + repair & after repair (mostly already integer) \\
+\bottomrule
+\end{tabular}
+\caption{Chain B and C trade-off (Table~\ref{tab:iowa-headline}
+  numbers). B is $\sim 44\times$ faster per step in wall-clock; only C
+  moves the compactness needle on Iowa. Both
+  kernel-flexible.}\label{tab:b-vs-c}
+\end{table}
+
+%════════════════════════════════════════════════════════════════════════════════
+\section{Experiments}\label{sec:experiments}
+%════════════════════════════════════════════════════════════════════════════════
+
+We evaluate the six chains of Table~\ref{tab:five-chains} on three
+datasets, namely the $5 \times 5$ grid (full enumeration, ground-truth
+target), the Iowa county dual graph (real geography, 99 counties,
+$k = 4$, $\varepsilon = 0.05$), and the North Carolina precinct dual
+graph ($2\,692$ precincts, $k = 4$, $\varepsilon = 0.05$). All hyperparameters are
+locked in Appendix~\ref{app:hyperparams}; raw cut traces, per-step
+balance audits, and configuration stamps are released in the project
+repository.
+
+\paragraph{Statistical protocol.} Chains are autocorrelated, so we do
+not report i.i.d.\ test statistics on raw traces. For every
+comparison we report the mean difference, Cohen's $d$ on the pooled
+post-burn-in standard deviation, and a $z$-test whose standard errors
+use effective sample sizes (ESS) from Geyer's initial-positive-sequence
+estimator of the integrated autocorrelation time. ESS values are
+reported alongside and are small, typically tens per 400 retained
+Iowa steps (as low as 3 for Chain E), with the sharply concentrated
+Chain C on the $5 \times 5$ grid the one exception in the hundreds.
+Each chain runs on its own seeded RNG stream. The tables below report
+a single seed (42) with full diagnostics; every headline comparison
+was replicated across ten seeds (42 through 51) under one solver
+configuration. On Iowa, Chain C's gain is $-8.0 \pm 0.4$ cuts versus
+Chain A ($-20.3\%$), negative on all ten seeds (paired
+$p = 6.4 \times 10^{-13}$), with C's mean cut count at
+$31.4 \pm 0.3$. Chain B's effect resolves to $-0.9 \pm 1.0$ cuts
+($-2.3\%$), negative on nine of ten seeds and nominally significant
+($p = 0.015$) but an order of magnitude below C's, so single runs
+cannot distinguish it from zero. Chain D is indistinguishable from A
+($+0.4$ cuts, $p = 0.10$). On the $5 \times 5$ fiber, C's between-seed
+spread is essentially nil ($16.04 \pm 0.02$ mean cuts) and its
+$-4.1\%$ gain holds on all ten seeds ($p = 4.3 \times 10^{-7}$),
+while B is null ($p = 0.59$). Between-seed standard deviations of the
+baselines are about $0.4$ cuts on Iowa, so single-seed means are
+representative.
+
+\paragraph{Balance audit.}\label{sec:exp-balance} Every experiment
+records, at every step, the maximum relative deviation of any district
+population from the global ideal. All six chains satisfy the
+$\varepsilon = 0.05$ bound at every step of every run reported here
+(Iowa maxima 0.0498--0.0500). We flag this because it is not automatic.
+GerryChain's raw \texttt{recom} proposal validates only one side of
+each tree cut, and an earlier version of our own local steps anchored
+balance to the merged-pair half rather than the global ideal
+(\S\ref{sec:qp-model}); either slip lets district populations drift
+to $\sim$4$\times$ the nominal tolerance on Iowa before the audit
+catches it. We recommend per-step balance auditing as standard
+practice for any custom chain harness that bypasses GerryChain's
+validator pipeline.
+
+\subsection{Ground truth on the enumerated fiber: what the family samples}\label{sec:exp-5x5}
+
+The $5 \times 5$ partition fiber (the set of all valid plans; $k = 5$, exact balance, 4\,006
+partitions; \S\ref{sec:fiber-corridors}) admits full enumeration, so
+every distributional quantity is exactly computable. The chains run
+with $\varepsilon = 0.05$, which on 25 unit-population cells admits
+only districts of exactly five cells, so the state space the chains
+traverse is precisely this enumerated fiber. Two disclaimers
+shape the design of this experiment. First, \emph{uniform-on-fiber is
+not the target of any chain in this paper}; we report the total-variation
+(TV) distance to uniform only as a descriptive concentration measure. Second, with $\sim$900
+retained correlated draws over 4\,006 states, even a perfect
+i.i.d.\ uniform sampler would show TV $\gtrsim 0.78$, so short-run TV
+values mostly restate the coverage column. The informative
+comparisons are (i) the empirical cut \emph{mean} against the exactly
+computable target mean, which converges at rate
+$\mathrm{ESS}^{-1/2}$ and does not suffer the support problem, and
+(ii) long runs (\S\ref{sec:exp-longrun}).
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{lrrrr}
+\toprule
+Chain & Mean cuts & Std & Unique / 4006 & TV(emp, uniform) \\
+\midrule
+V: Vanilla ReCom     & 17.06 & 1.08 & 337 / 4006 (8.4\%) & 0.92 \\
+A: Tempered ReCom    & 17.02 & 1.15 & 311 / 4006 (7.8\%) & 0.92 \\
+B: QP-diffusion mix  & 16.54 & 0.83 & 153 / 4006 (3.8\%) & 0.96 \\
+C: IQP local         & 16.03 & 0.19 & 130 / 4006 (3.2\%) & 0.97 \\
+D: Spectral mix      & 16.53 & 0.85 & 208 / 4006 (5.2\%) & 0.95 \\
+E: QP-MH exact       & 16.27 & 0.44 & \phantom{00}6 / 4006 (0.1\%) & 1.00 \\
+\bottomrule
+\end{tabular}
+\caption{$5 \times 5$ short-run comparison ($k = 5$, exact balance,
+  1\,000 steps, burn-in 100, seed 42). The exact target mean is
+  $\E_\pi[|\partial P|] = 18.56$ at $\lambda = 0.10$, and \emph{every}
+  chain sits far below it at this horizon, including the exactly
+  reversible Chain E, which at 1\,000 steps has visited only 6 states. Exactness of the kernel does not buy mixing speed. Compactness
+  gains trade against coverage. Chain C covers 3.2\% of the fiber against
+  V's 8.4\%.}\label{tab:5x5-headline}
+\end{table}
+
+\textbf{The origin of the gap.} Chains B and C
+sacrifice roughly half of V's fiber coverage at this horizon. The
+gap between every chain's empirical mean and the target mean 18.56
+quantifies the compactness bias \emph{shared} by the whole
+ReCom-derived family, and on the enumerated fiber we can identify its
+origin exactly. Using the Matrix--Tree theorem we compute, for each
+of the 4\,006 partitions, the spanning-tree-count weight
+$\prod_i \tau(V_i)$, the measure that the RevReCom analysis
+identifies as the natural target of tree-based
+recombination~\cite{cannon2022spanning,autry2023metropolized}. The
+match is close. The tree-weighted measure has
+$\E[|\partial P|] = 16.88$ against Vanilla ReCom's ten-seed mean of
+$16.95 \pm 0.11$, and the tree-weighted-and-tempered measure
+$\prod_i \tau(V_i)\, e^{-\lambda|\partial P|}$ has
+$\E[|\partial P|] = 16.78$ against Chain A's ten-seed mean of
+$16.71 \pm 0.16$; both gaps are 0.07 cuts, well within one
+between-seed standard deviation, and the long runs below sharpen the
+match further. In
+other words, the ``tempered gap'' is not a mystery. On this test bed
+the two pure tree-move chains sit essentially on their
+tree-count-weighted quasi-targets, 1.6 and 1.8 cuts below the nominal
+tempered distribution, quantitatively confirming the
+spanning-tree-measure theory on fully enumerated ground truth. Our
+refinements deepen that pre-existing bias only modestly (Chain C
+lands 2.5 cuts below the nominal target). Chain C's relative gain is
+far larger on Iowa ($-20.3\%$ across ten seeds,
+\S\ref{sec:exp-compactness}, against $-4.0\%$ here), reflecting the
+room that heterogeneous county populations leave for optimization;
+the uniform grid leaves little, so we read the $5 \times 5$ results
+as calibration, not as a demonstration of power.
+
+\paragraph{Long-run validation.}\label{sec:exp-longrun}
+We run Chain A for $2 \times 10^5$ steps and Chain E for $10^5$ steps
+on the enumerated fiber (seed 42, 10\% burn-in) and compare empirical
+cut means against the exact target mean
+$\E_\pi[|\partial P|] = 18.557$. The two chains test two predictions,
+and both are confirmed.
+
+\emph{Chain A: the symmetric-$q$ bias persists asymptotically.} At
+$2 \times 10^5$ steps the tempered chain has visited $3\,524/4\,006$
+states, and its empirical mean is $16.73$. The $1.8$-cut gap from the
+nominal target does not shrink with run length. It is not drift; it is
+convergence to the wrong (tree-weighted) distribution. The
+Matrix--Tree prediction for the tree-weighted-and-tempered measure is
+$16.78$, and the chain lands within $0.06$ cuts of it. The
+symmetric-$q$ filter converges, quantitatively, to the
+spanning-tree-weighted analogue of its target, exactly as the
+RevReCom analysis predicts~\cite{cannon2022spanning}.
+
+\emph{Chain E: the exact sampler converges in mean to its target.} At
+$10^5$ steps Chain E's empirical mean is $18.39$, within $0.17$ cuts
+(under $1\%$) of the exact target mean, with the gap shrinking from
+$2.3$ cuts at the $10^3$-step horizon. This is end-to-end empirical
+validation of the detailed-balance construction of \S\ref{sec:qp-mh}
+on a nontrivial state space, complementing the machine-precision
+kernel check of Remark~\ref{rem:qpmh-scope}. Convergence of the full
+distribution is far slower, as expected for a sticky local chain. E
+has visited only $403/4\,006$ states and its TV distance to $\pi$
+remains $0.90$, so the mean (which converges at the ESS rate on a
+bounded function) is the informative statistic here, not TV.
+
+\subsection{Compactness on Iowa: refinement gains and optimizer baselines}\label{sec:exp-compactness}
+
+\paragraph{Iowa (6 chains).}\label{sec:exp-iowa}
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{lrrllr}
+\toprule
+Chain & Mean cuts & Std & $\Delta$ vs A (Cohen's $d$) & ESS-$z$ $p$ & Wall-clock \\
+\midrule
+V: Vanilla ReCom         & 41.39 & 4.78 & ---                & ---     & 1.2\,s \\
+A: Tempered ReCom        & 39.76 & 4.32 & ---                & ---     & 1.1\,s \\
+B: QP-diffusion mix      & 38.15 & 4.28 & $-4.0\%$ ($-0.37$) & $0.24$  & 1.3\,s \\
+\textbf{C: IQP local ($n_{\mathrm{iqp}} = 10$)}
+                         & \textbf{31.78} & \textbf{1.25}
+                         & \textbf{$-20.1\%$ ($-2.51$)} & $< 10^{-11}$ & 57.2\,s \\
+D: Spectral mix          & 39.51 & 4.70 & $-0.6\%$ ($-0.06$) & $0.85$  & 3.9\,s \\
+E: QP-MH exact           & 55.21$^{\dagger}$ & 7.88 & n/a (not converged) & n/a & 3.6\,s \\
+\bottomrule
+\end{tabular}
+\caption{Iowa cut counts ($k = 4$, $\varepsilon = 0.05$, 500 steps,
+  burn-in 100, seed 42, per-step balance audit passed by all chains).
+  Chain C delivers a 20.1\% reduction in mean cuts versus Tempered
+  ReCom on this seed ($-20.3\%$ across ten seeds) with the tightest
+  distribution; Chains B and D are
+  statistically indistinguishable from A once balance is enforced
+  correctly and autocorrelation is accounted for. $^{\dagger}$Chain E
+  is not a competitor on compactness. It is the exact sampler for the
+  tempered target, and its trajectory is still rising at 500 steps
+  (ESS $\approx 3$), so we report its mean as a \emph{non-equilibrium
+  lower bound} on the target's cut level, with no test statistic.
+  Even as a lower bound it shows the target
+  $\pi \propto \exp(-0.1\,|\partial P|)$ is far \emph{less} compact
+  than the output of any ReCom-family chain.}\label{tab:iowa-headline}
+\end{table}
+
+Three readings of Table~\ref{tab:iowa-headline}. First, the
+integer refinement is the only local kernel whose Iowa gain survives
+rigorous accounting. A change of $-20.1\%$ on this seed ($-20.3\%$
+across ten seeds) with $d = -2.51$ is an enormous effect by any
+convention within the chain family, though
+\S\ref{sec:exp-optimizer-baselines} shows classical annealing reaches
+the same best plans far more cheaply, and it is robust to the
+balance-constraint correction that erased Chain B's
+previously-measured advantage (with the global window enforced, B's
+point estimate swings between $-0.3\%$ and $-4.0\%$ across equivalent
+reruns and never approaches significance at these effective sample
+sizes; \S\ref{sec:disc-limits}).
+Second, Chain D's parity with A and V supports our claim that the
+spectral cut alone, without the fidelity term, does not improve
+ReCom-family compactness on heterogeneous county graphs. Third, Chain
+E's trajectory shows the Iowa version of the calibration result of
+\S\ref{sec:exp-5x5}. Taking E's non-equilibrium mean as a lower
+bound, every ReCom-based chain here sits at least $\sim$14--23 cuts
+\emph{below} the tempered target's own mean, because the
+spanning-tree proposal is itself strongly compactness-biased.
+``Tempered ReCom targets $\pi$'' is, on this evidence, a statement
+about the filter, not the samples.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.92\textwidth]{fig/target_matched_iowa.png}
+  \caption{Cut-edge trace and post-burn-in histogram for the six
+    chains on Iowa. Chain C concentrates tightly at low cut counts;
+    Chain E drifts upward toward the tempered target's own cut
+    level.}
+  \label{fig:iowa-trace}
+\end{figure}
+
+The wall-clock column completes the practitioner picture. Chain C's
+compactness costs $\sim 48\times$ the per-step time of Vanilla ReCom at
+$n_{\mathrm{iqp}} = 10$ (about 0.11\,s per step on Iowa), which is
+acceptable for ensembles of thousands of plans but material at
+precinct scale. Chain C's tight standard deviation (1.25 vs.\ 4.32
+for A) is the signature of an optimizer concentrating on IQP local
+minima rather than the spread of a sampler at equilibrium, consistent
+with its matheuristic reading (\S\ref{sec:chain-c-honest}).
+
+\paragraph{Optimizer baselines.}\label{sec:exp-optimizer-baselines}
+Because Chain C is benchmarked as an optimizer, we compare it against
+the classical optimizers a referee should demand. Simulated annealing
+over ReCom proposals (the same Metropolis filter as Chain A with a
+geometric cooling schedule, $\lambda$ from $0.05$ to $5$) and pure
+hill climbing (accept only non-worsening moves) both cost the same as
+Vanilla ReCom, about one second for 500 steps on Iowa. We also run
+the same schedule stretched to $5\,000$ steps and a 25-restart
+variant.
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{lrrrrr}
+\toprule
+Method & Best cuts & Ensemble mean & Distinct plans & Pairwise dist. & Wall \\
+\midrule
+SA (500 steps)           & 31 & 31    & 1 (frozen)  & ---  & 1.0\,s \\
+Hill climbing (500)      & 31 & 31    & 1 (frozen)  & ---  & 0.9\,s \\
+SA (5\,000 steps)        & 29 & 31    & 1 (frozen)  & ---  & 9.7\,s \\
+SA, 25 restarts          & 29 & 31.00 & 23          & 25.1 & 26\,s \\
+Vanilla ReCom + IQP      & 31 & 31.68 & moving      & ---  & 53\,s \\
+Chain C                  & 29 & 32.34 & 135         & 23.5 & 57\,s \\
+\bottomrule
+\end{tabular}
+\caption{Optimizer baselines on Iowa (seed 42,
+  Gurobi 13). ``Ensemble mean'' is the mean cut count of the plans
+  each method ends up producing (the frozen plateau for single-run
+  SA and hill climbing, the set of 23 distinct final plans for
+  restarted SA, the distinct post-burn-in plans for the chain
+  methods). ``Distinct plans'' counts distinct plans produced (over
+  400 post-burn steps for Chain C). ``Pairwise dist.''\ is the mean
+  number of counties reassigned between two distinct plans under the
+  best district relabeling. The single-run SA and hill-climbing rows
+  were replicated across ten seeds. SA's best ranges over 30--32 and
+  never reaches 29 in 500 steps (mean frozen plateau 31.8), and hill
+  climbing lands at 31 on every
+  seed.}\label{tab:optimizer-baselines}
+\end{table}
+
+We report this comparison as a main finding rather than bury it, and
+it cuts both ways. The best plan quality found (29 cut edges) is
+reached by three routes, namely the $5\,000$-step anneal (9.7\,s),
+restarted annealing (26\,s), and Chain C (57\,s). Single 500-step
+anneals stop at 30--32 across ten seeds and hill climbing at 31 on
+every seed, so the compact tail takes patience or restarts. For a
+\emph{single} compact plan, the longer anneal is the clear winner at
+about a sixth of Chain C's cost, so nobody should reach for an MIQP
+to find one compact map. As \emph{ensemble} generators the two are
+closer. Over matched compute, restarted annealing yields a
+slightly better mean over its distinct plans (31.00 vs.\ 32.34) and
+slightly higher diversity (25.1 vs.\ 23.5 counties reassigned between
+plan pairs), while Chain C yields far more distinct near-optimal
+plans per minute (about 141 vs.\ 53). Neither dominates. A
+$2 \times 2$
+decomposition sharpens where the compactness comes from. Adding IQP
+refinement to Vanilla ReCom is worth about $10$ cuts on the mean
+(41.39 to 31.68) and adding it to Tempered ReCom about $8$ (39.76 to
+31.78), while the tempering filter alone is worth about $1.6$ cuts
+and moves the post-refinement mean by under $0.2$. The optimizer does
+the work; the outer filter barely moves the mean, though on this seed
+only the tempered variant reached a 29-cut plan.
+
+Two conclusions follow. First, on pure compactness optimization the
+simple classical baseline matches the MIQP machinery at a fraction of
+the cost, and we believe papers in the optimization-inside-ReCom line
+should report this baseline as standard practice. Second, what the QP
+framework retains is what annealing cannot offer. The fidelity term
+produces \emph{anchored} refinements, small changes near a given
+plan, which matters for least-change remedial redistricting and is
+tested head to head in \S\ref{sec:exp-leastchange}. The same
+machinery accepts arbitrary geographic kernels with characterized
+behavior (\S\ref{sec:exp-multikernel}). And the framework's exactly
+reversible member, Chain E, carries a provable stationary
+distribution, a property no annealing schedule can provide and the
+reason the framework is a sampling contribution rather than an
+optimization one.
+
+\subsection{North Carolina precinct validation}\label{sec:exp-nc}
+We repeat the six-chain comparison on the North Carolina precinct dual
+graph (\texttt{NC\_VTD}, $2\,692$ precincts, $k = 4$,
+$\varepsilon = 0.05$, seed 42, 500 steps), roughly twenty-seven times
+the vertex count of the Iowa instance. This is a single-seed scale
+demonstration, so we report effect sizes without ESS-corrected test
+statistics and read the directions, not the exact magnitudes.
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{lrrlr}
+\toprule
+Chain & Mean cuts & Std & $\Delta$ vs A (Cohen's $d$) & Wall-clock \\
+\midrule
+V: Vanilla ReCom    & 302.5 & 37.9 & ---                & 31\,s \\
+A: Tempered ReCom   & 226.4 & 23.8 & ---                & 30\,s \\
+B: QP-diffusion mix & 252.6 & 50.9 & $+11.5\%$ ($+0.66$) & 89\,s \\
+\textbf{C: IQP local ($n_{\mathrm{iqp}} = 10$)}
+                    & \textbf{145.7} & \textbf{3.9}
+                    & \textbf{$-35.7\%$ ($-4.73$)} & 1950\,s \\
+D: Spectral mix     & 253.7 & 49.8 & $+12.0\%$ ($+0.70$) & 131\,s \\
+E: QP-MH exact      & 418.6$^{\dagger}$ & 25.1 & n/a (not converged) & 91\,s \\
+\bottomrule
+\end{tabular}
+\caption{North Carolina precincts ($k = 4$, $\varepsilon = 0.05$,
+  500 steps, burn-in 100, seed 42, per-step balance audit passed).
+  Chain C reduces mean cut edges by $35.7\%$ versus Tempered ReCom,
+  a larger relative gain than on Iowa, at a per-step cost of about
+  $3.9$\,s. $^{\dagger}$Chain E is still climbing at 500 steps and its
+  mean is a non-equilibrium lower bound, as on Iowa.}\label{tab:nc-headline}
+\end{table}
+
+Two things carry over from Iowa and one is new. The integer refinement
+again dominates its chain family, and by a wider margin
+($-35.7\%$, $d = -4.73$), consistent with our reading that
+heterogeneous real-world graphs leave more room for local
+optimization than the uniform grid. Chain C's distribution is again
+sharply concentrated (std $3.9$ against $23.8$ for A). The new
+observation is that on this larger graph the two mixture chains, B and
+D, land \emph{above} Tempered ReCom rather than beside it ($+11.5\%$
+and $+12.0\%$), because a single continuous QP solve or spectral cut
+on a precinct-scale merged region is a coarse move that the
+unconditional accept step does not filter, so at scale the cheap
+regimes hurt. Only the exact integer solve (Chain C) and the exact
+sampler (Chain E, by construction) behave well at precinct scale. The
+cost is real. Chain C's $1950$\,s for 500 steps, about $3.9$\,s per
+step, is acceptable for a targeted refinement pass but not for a long
+ensemble run, which is the same speed-versus-power trade the Iowa
+timings show, magnified by scale.
+
+\subsection{Multi-kernel showcase on Iowa}\label{sec:exp-multikernel}
+
+We run Chain B and Chain C on Iowa with three kernels and visualize
+the resulting partitions. The three kernels are uniform
+($k_{\mathrm{unif}}$), perimeter ($k_{\mathrm{perim}}$,
+$w_{ij}$ = shared-boundary length from \texttt{shared\_perim}), and
+density ($k_{\mathrm{dens}}$, $w_{ij} = |\partial v_i \cap \partial v_j| \cdot \exp(-(\rho_i - \rho_j)^2 / \sigma^2)$
+with $\rho_v = \mathrm{TOTPOP}/\mathrm{area}$ normalized to unit
+mean and $\sigma = 1$).
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{fig/multikernel_iowa.png}
+  \caption{Final Chain C plans on Iowa under the three kernels
+    (seed 42, 500 steps, identical constraints; only the Laplacian
+    edge weights differ). Panel annotations give the unweighted cut
+    count and the geographic boundary length (sum of shared-perimeter
+    weights over cut edges). The plans differ in 19 to 25 of the 99
+    counties under optimal district relabeling. The kernel directly
+    encodes geographic signal at the proposal level.}
+  \label{fig:multikernel-iowa}
+\end{figure}
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{lrrrr}
+\toprule
+Kernel & B mean cuts & C mean cuts & C boundary (mean $\pm$ sd)
+  & C $|\Delta\rho|$ ratio (mean $\pm$ sd) \\
+\midrule
+$k_{\mathrm{unif}}$  & 38.15 & 31.78 & $10.38 \pm 0.67$ & $1.78 \pm 0.36$ \\
+$k_{\mathrm{perim}}$ & 39.00 & 33.39 & $\mathbf{9.89 \pm 0.42}$ & $1.82 \pm 0.39$ \\
+$k_{\mathrm{dens}}$  & 38.09 & 36.84 & $11.31 \pm 1.16$ & $\mathbf{2.07 \pm 0.37}$ \\
+\bottomrule
+\end{tabular}
+\caption{Three kernels on Iowa ($k = 4$, $\varepsilon = 0.05$,
+  500 steps, burn-in 100, seed 42, corrected balance constraint,
+  Gurobi 13). Mean cuts are post-burn-in averages of the unweighted
+  cut count. The last two columns are averaged over every post-burn-in
+  Chain C plan (not one snapshot), with the standard deviation across
+  plans. ``C boundary'' is the geographic boundary length (sum of
+  \texttt{shared\_perim} over cut edges, in the dual graph's units).
+  ``$|\Delta\rho|$ ratio'' is the mean population-density gap across
+  cut edges divided by the graph-wide mean gap, so $1.00$ means
+  density-blind boundaries and larger values mean boundaries
+  concentrated on urban--rural transitions. Each kernel is best on its
+  own metric (bold): the perimeter kernel gives the shortest
+  geographic boundary, the density kernel the highest density-gap
+  ratio. Under non-uniform kernels the unweighted cut count is not the
+  objective, so the cut columns must be read together with the
+  kernel-specific columns.}\label{tab:multikernel-iowa}
+\end{table}
+
+\textbf{Positioning of the kernel showcase.} SpecReCom uses randomized
+edge weights only to break spectral ties; region-aware ReCom and
+county-weighted trees accept indicator surcharges; none accepts an
+arbitrary user-supplied kernel with a locality anchor. The claim this
+experiment supports is deliberately scoped to kernels as first-class
+proposal inputs, with characterized behavior, not priority over
+all weighted proposals (\S\ref{sec:related-weighted}).
+
+\textbf{What each kernel does to the plan.} The three final Chain C
+plans in Figure~\ref{fig:multikernel-iowa} are genuinely different
+districtings, not perturbations of one another. Under the best
+district relabeling they disagree on 19 of 99 counties (uniform vs.\
+perimeter), 25 (uniform vs.\ density), and 24 (perimeter vs.\
+density). Averaged over the whole post-burn-in trajectory, each
+kernel is best on the quantity it encodes. The perimeter kernel
+prices each edge by its shared boundary length and gives the shortest
+mean geographic boundary ($9.89$ vs.\ $10.38$ for uniform, a $4.7\%$
+reduction). The density kernel prices edges by shared boundary length
+damped across density gaps, and it does the opposite on raw boundary,
+producing the \emph{longest} average boundary ($11.31$), because it
+will accept a longer border in exchange for aligning cuts with
+population-density transitions. Its mean density gap across cut edges
+is $2.07\times$ the graph-wide mean, against $1.78\times$ for the
+uniform kernel. In map terms, the density plan's four largest-gap cut
+edges are precisely the borders of Polk County (Des Moines), followed
+by those of Linn (Cedar Rapids) and Johnson (Iowa City), the state's
+three main urban cores, rather than edges through uniformly rural
+blocks.
+
+We stress the trajectory averages over single-plan snapshots on
+purpose. A single final plan is a noisy draw, and its boundary and
+gap numbers can point the wrong way. Figure~\ref{fig:multikernel-iowa}
+itself illustrates this. The final density-kernel plan happens to land
+a shorter boundary than the final perimeter plan, opposite to the
+trajectory means. Only the post-burn-in means, with the
+spreads in Table~\ref{tab:multikernel-iowa}, separate the kernel's
+systematic effect from run-to-run noise.
+
+\textbf{Reading the cut-count column.} Under non-uniform
+kernels the unweighted cut count worsens, from 31.78 (uniform) to
+33.39 (perimeter) and 36.84 (density) for Chain C, and it should, because
+raw cut count is no longer the objective. The kernel-specific metrics
+improve instead, which is the point of the showcase. Chain B is
+nearly kernel-insensitive (38.1--39.0 mean cuts across all three),
+consistent with its Iowa null result in
+Table~\ref{tab:iowa-headline}. The continuous relaxation plus
+rounding does not transmit the kernel's signal into the final integer
+plan the way the exact integer solve does.
+
+These are single-seed runs, so we read them as a demonstration of
+direction, not as calibrated effect sizes. The direction is
+unambiguous because each kernel comes out ahead on its own metric,
+averaged over the run, on the same seed and the same constraint set.
+
+\subsection{Least-change refinement from the enacted plan}\label{sec:exp-leastchange}
+
+Remedial redistricting often asks for the smallest change that
+improves a specific plan, for example when a commission must repair a
+defect without redrawing the whole map. This is the setting the
+fidelity term was built for, and we quantify it directly. The
+reference plan is Iowa's enacted 2011 congressional map (47 cut
+edges; district populations within $0.01\%$ of the ideal, so it is a
+valid state of every chain in this paper). A method may reassign at
+most $D$ of the 99 counties, counted under the best district
+relabeling, and we record the best cut count it achieves within that
+budget, over ten seeds.
+
+Three methods start at the reference. The \emph{anchored IQP
+refinement} is the paper's inner move alone ($\alpha = 10$, uniform
+kernel, global balance window, no outer ReCom move), run for 50
+passes. Because the fidelity weight $\beta$ is exactly the
+least-change dial, the method's frontier is the envelope of (cuts,
+distance) trajectories over $\beta \in \{0, 0.3, 1, 3, 10, 30\}$,
+about 3\,s of total solve time per seed. \emph{Distance-capped
+annealing over ReCom proposals} uses the geometric schedule of
+\S\ref{sec:exp-optimizer-baselines} and rejects any proposal beyond
+the budget ($2\,000$ proposals per budget, about 4\,s).
+\emph{Distance-capped annealing over single-county boundary flips},
+with contiguity and the global balance window enforced per flip, is
+the fine-grained classical alternative ($2\,000$ proposals, under
+1\,s).
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{rrrr}
+\toprule
+Budget $D$ & IQP anchored ($\beta$ envelope) & SA-ReCom capped & SA-flip capped \\
+\midrule
+3  & $42.40 \pm 1.36$ & $41.40 \pm 0.80$ & $\mathbf{40.60 \pm 0.66}$ \\
+5  & $39.60 \pm 0.92$ & $38.80 \pm 0.75$ & $\mathbf{38.20 \pm 0.40}$ \\
+10 & $\mathbf{32.00 \pm 0.00}$ & $32.10 \pm 0.30$ & $33.10 \pm 0.94$ \\
+15 & $32.00 \pm 0.00$ & $\mathbf{31.70 \pm 0.46}$ & $32.10 \pm 0.30$ \\
+20 & $32.00 \pm 0.00$ & $\mathbf{31.20 \pm 0.40}$ & $31.60 \pm 0.49$ \\
+none & $31.80 \pm 0.40$ & $\mathbf{30.60 \pm 0.66}$ & $32.30 \pm 0.46$ \\
+\bottomrule
+\end{tabular}
+\caption{Least-change refinement of the enacted Iowa plan (47 cut
+  edges). Entries are the best cut count reachable while reassigning
+  at most $D$ counties (best district relabeling), mean $\pm$ sd over
+  ten seeds; bold marks the best method per budget. The last row
+  removes the cap ($D = 99$).}\label{tab:least-change}
+\end{table}
+
+Move granularity explains the pattern. From the reference, an
+accepted ReCom move reassigns a median of 26 counties (mean 25.0,
+minimum 1 over 197 accepted moves), so the capped ReCom annealer
+survives on the rare tree draws that happen to re-split almost
+identically. An accepted IQP pass at $\beta = 1$ moves 2.5 counties
+on average (median 2, maximum 5).
+
+No method dominates the frontier, and we report all three regimes.
+At tight budgets ($D \le 5$) capped flip annealing wins; one-county
+moves explore the small-perturbation space that both the tree
+re-split and the pair-optimal IQP step overshoot. At $D = 10$ the
+anchored refinement is the best entry and, unlike the annealers, it
+is deterministic. From the enacted plan the $\beta = 1$ refinement
+removes 15 of 47 cut edges while moving exactly 10 counties, reaching
+the same plan on all ten seeds in about half a second of solve time,
+with no cooling schedule or restart budget to tune. At loose budgets
+($D \ge 15$) the task stops being least-change and capped ReCom
+annealing pulls ahead, consistent with
+\S\ref{sec:exp-optimizer-baselines}. The practical summary is that
+for repairs moving roughly ten percent of units the anchored IQP is
+the strongest and most reproducible tool, smaller repairs favor flip
+annealing, and larger redraws favor global annealing. The IQP
+frontier here came from sweeping $\beta$, which confirms the fidelity
+term as a usable least-change dial rather than a fixed setting.
+
+\subsection{Ablations and sensitivity}\label{sec:exp-ablations}
+
+All tables in this subsection are from the corrected balance
+constraint and Gurobi 13, on the same Chain C RNG stream as the
+headline table.
+
+\paragraph{Diversity controls (Jitter and Tabu).}\label{sec:exp-diversity}
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{lrrrr}
+\toprule
+Configuration & Mean cuts & Std & Distinct-plan rate & Wall-clock \\
+\midrule
+Baseline ($n_{\mathrm{iqp}} = 5$)               & 31.64 & 2.10 & 32.8\% & 31\,s \\
++ Jitter ($\mathcal{U}[1,2]$ on edge weights)   & 32.40 & 1.93 & \textbf{58.6\%} & 35\,s \\
++ Tabu (size 3)                                  & \textbf{30.16} & 1.60 & 14.6\% & 30\,s \\
+\bottomrule
+\end{tabular}
+\caption{Diversity controls on Iowa ($n_{\mathrm{iqp}} = 5$,
+  $\alpha = 10$, $\beta = 1$). ``Distinct-plan rate'' is the fraction
+  of the 500 steps that produced a not-yet-seen plan. The two
+  controls pull in opposite directions, as intended.}\label{tab:diversity-iowa}
+\end{table}
+
+The two controls are orthogonal knobs, and they pull in opposite
+directions. Jitter multiplies each edge weight by a
+$\mathcal{U}[1,2]$ factor before the solve, which breaks ties between
+equally good cuts and sends the chain to different optima. It raises
+the distinct-plan rate from $33\%$ to $59\%$ at a cost of under one
+cut of compactness. Tabu forbids the last three merged pairs from
+being reused, which forces each step to refine a boundary the chain
+has not just touched. That deepens the optimization decisively (mean
+$31.64 \to 30.16$, the best single configuration in this paper, with
+std $2.10 \to 1.60$) while halving the distinct-plan rate, because
+systematic coverage of the boundaries drives the chain into the same
+deep local optima. In short, Jitter varies which cut is taken on a
+given pair and buys exploration, while Tabu varies which pair is
+picked and buys depth. A practitioner wanting a diverse ensemble
+turns on Jitter; one wanting the sharpest compactness turns on Tabu.
+
+\paragraph{Sensitivity to $n_{\mathrm{iqp}}$, $\alpha$, and $\beta$.}\label{sec:exp-sensitivity}
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{lrrr}
+\toprule
+Configuration & Mean cuts & $\Delta$ vs A & Wall-clock \\
+\midrule
+$n = 3, \alpha = 10, \beta = 1$  & 33.03 & $-16.9\%$ & 18\,s \\
+$n = 5, \alpha = 10, \beta = 1$  & 31.64 & $-20.4\%$ & 31\,s \\
+$n = 10, \alpha = 10, \beta = 1$ & 31.78 & $-20.1\%$ & 118\,s \\
+$n = 3, \alpha = 50, \beta = 1$  & 32.70 & $-17.7\%$ & 24\,s \\
+$n = 5, \alpha = 10, \beta = 0$  & 32.27 & $-18.8\%$ & 36\,s \\
+$n = 10, \alpha = 50, \beta = 0$ & 31.19 & $-21.6\%$ & 196\,s \\
+\bottomrule
+\end{tabular}
+\caption{Chain C parameter sensitivity on Iowa ($k = 4$,
+  $\varepsilon = 0.05$, seed 42). $n_{\mathrm{iqp}}$ is the number of
+  inner IQP passes per step.}\label{tab:sensitivity}
+\end{table}
+
+Table~\ref{tab:sensitivity} reports the uniform-kernel slice; the
+full sweep over $n_{\mathrm{iqp}} \in \{3,5,10\}$,
+$\alpha \in \{10,50\}$, $\beta \in \{0,1\}$ and all three kernels
+(36 configurations) is released with the code as supplementary
+material. Three readings. First, $n_{\mathrm{iqp}}$ has diminishing
+returns.
+Moving from $3$ to $5$ passes buys about three and a half percentage
+points of cut reduction ($-17\%$ to $-20\%$), but moving from $5$ to
+$10$ buys nothing more while quadrupling the runtime, because after a
+few passes the easy boundary improvements are exhausted and further
+passes revisit already-refined pairs. Five passes is the practical
+sweet spot. Second, $\alpha$ (the weight on the Laplacian smoothing
+term) matters little once it is large enough to dominate. Moving from
+$10$ to $50$ changes the result by half a cut or less, so we fix
+$\alpha = 10$. Third, the
+fidelity weight $\beta$ helps rather than hurts. At $n = 5$, keeping
+$\beta = 1$ gives $-20.4\%$ against $-18.8\%$ with $\beta = 0$. The
+anchor keeps each refinement near the current plan, which on
+heterogeneous county populations lands better local optima than an
+unanchored solve, and it is what the exactly reversible Chain E needs
+to stay near-binary. We therefore keep $\beta = 1$ throughout.
+
+%════════════════════════════════════════════════════════════════════════════════
+\section{Discussion}\label{sec:discussion}
+%════════════════════════════════════════════════════════════════════════════════
+
+\subsection{What each member of the family is for}\label{sec:disc-roles}
+
+The three new chains occupy deliberately different points on the
+correctness--power spectrum, and the plain summary of our results is
+that no single point dominates. \textbf{Chain C} delivers a large,
+replicated compactness gain over its own chain family ($20.3\%$
+versus Tempered ReCom across ten seeds, seed-42 Cohen's
+$d = -2.51$), and the MIQP's
+optimality within each merged pair is what makes it robust where the
+continuous relaxation (Chain B) fails. But that power is an
+optimizer's power, and our baselines
+(\S\ref{sec:exp-optimizer-baselines}) show that annealed ReCom
+reaches the same best plan quality within seconds and, restarted,
+matches Chain C as a compactness-ensemble generator. Chain C's real
+niche is therefore narrower than its headline number suggests. Its
+anchored refinements stay near the current plan (useful for
+least-change remedial redistricting), they accept arbitrary
+geographic kernels, and its output spread (std $1.25$ vs.\ $4.32$) is
+concentration on IQP local minima, not the spread of a sampler at
+equilibrium; we have shown (\S\ref{sec:chain-c-honest}) that no lemma
+can reconcile its deterministic contraction with a stationarity
+claim. Use Chain C
+for kernel-aware anchored refinement of a given plan at moderate
+change budgets, the regime where \S\ref{sec:exp-leastchange} shows
+it is the strongest and most reproducible tool (capped flip
+annealing wins the tightest budgets, global annealing the loosest);
+for pure
+compactness search or unanchored compact ensembles, use annealing
+with restarts; and do not use either to build a null distribution
+for outlier analysis. \textbf{Chain E} is the
+opposite pole, provably exact for its target and, by the same token,
+unsparing about what that target looks like. Its non-equilibrium Iowa
+trajectory climbing past $55$ cuts (a lower bound on the target's
+level), with every other chain sitting at least $14$--$23$ cuts
+below, is to our knowledge the first direct empirical display of how
+far the ReCom family's outputs sit from the tempered distribution its
+Metropolis filters nominally target; the enumerated fiber, where the
+gap is exactly computable, confirms the direction of the effect. \textbf{Chain
+B} occupies the middle. After correcting the balance-constraint
+bug that had inflated its measured advantage, we report it as a
+negative result on Iowa. The continuous relaxation plus sweep
+rounding adds nothing significant over Tempered ReCom on
+heterogeneous county graphs. We keep it in the paper because the
+QP/IQP contrast is informative (integrality, not spectral
+smoothing, is doing the work) and because its per-step cost is
+$40\times$ lower than C's.
+
+Why does the fidelity term matter? The evidence is the Iowa
+compactness contrast, not the jump-rate table. Chain D, our
+balance-constrained variant of the SpecReCom idea with no $\beta$
+term, is statistically indistinguishable from Vanilla and Tempered
+ReCom on Iowa (Table~\ref{tab:iowa-headline}). The spectral cut alone
+re-splits each merged pair from scratch and discards the structure the
+chain has already found, whereas the anchored integer refinement
+improves on it decisively. The community step-trace diagnostic
+(\S\ref{sec:fiber-corridors}) makes a complementary, weaker point
+about locality in general. Pure tree-move chains cross community
+boundaries at 13--15\% per step, near the community-blind baseline,
+while every mixture with an optimization-guided local move (anchored
+or not) drops the rate to 5--11\%. The hybrid design, ReCom for
+across-community mobility and anchored refinement for
+within-community descent, follows from the two observations
+together.
+
+\subsection{On the macro-structure findings}\label{sec:disc-throats}
+
+The corrected picture of \S\ref{sec:fiber-corridors} has two
+consequences. First, it relocates the blame for
+slow local mixing. If plan space were islands joined by narrow
+corridors, slow traversal would be a topological inevitability and no
+local proposal could fix it; since the fibers are in fact well
+connected, slow traversal is
+a property of the dynamics, and better local proposals are not
+hopeless. Chain E crossing a community boundary 3 times in 1\,000
+steps despite 18\% of edges being available is the extreme data point. Its
+bottleneck is acceptance of large moves, not the graph. Second, the
+finding sharpens what a mixing obstruction for these state spaces
+would have to look like. Worst-case hardness
+results~\cite{akitaya2022reconfiguration,charikar2023complexity}
+permit bottlenecked instances, and our grids may simply be too small
+or too symmetric to exhibit them; enumerating a fiber with a genuine
+conductance bottleneck (or proving none exists for grid families)
+would be a valuable follow-up, and the statistics of
+Table~\ref{tab:communities} give the template for checking.
+
+\subsection{Limitations}\label{sec:disc-limits}
+
+\textbf{(L1) Chain B adds nothing significant on Iowa.} The
+continuous QP-diffusion's earlier measured gain was an artifact of a
+balance-constraint bug; corrected, its estimate is not
+distinguishable from zero ($-4.0\%$, $p = 0.24$, with point estimates
+swinging between $-0.3\%$ and $-4.0\%$ across equivalent reruns at
+ESS $\approx 30$). The relaxation appears too loose on graphs with
+highly variable vertex populations.
+
+\textbf{(L2) No theoretical mixing-time bound.} Like every existing
+redistricting chain, we lack a polynomial mixing-time guarantee, and
+Chain E demonstrates that even an exactly reversible member of the
+family can be an extremely slow mixer. We rely on empirical
+diagnostics, namely ESS, the community step-trace diagnostic, and enumerated
+ground truth.
+
+\textbf{(L3) Chain A's symmetric-$q$ approximation is not a small
+bias.} On the enumerated fiber the tempered chain's empirical mean
+($16.75$) sits $1.8$ cuts below the exact target mean ($18.56$), and
+Chain E's Iowa trajectory suggests the gap is larger, not smaller, on
+real graphs. Correcting it requires spanning-tree-count acceptance
+ratios~\cite{autry2023metropolized} or a RevReCom outer
+kernel~\cite{cannon2022spanning}.
+
+\textbf{(L4) Chain E mixes too slowly to use alone.} Exactness comes
+from single-shot rounding, which caps move sizes; the chain visited
+6 of 4\,006 fiber states in 1\,000 steps. It validates the corrected
+proposal and calibrates other chains' bias; it is not a production
+sampler.
+
+\textbf{(L5) Integer QP is computationally expensive.} Chain C costs
+$\sim 48\times$ Vanilla ReCom per step at $n_{\mathrm{iqp}} = 10$ on
+Iowa. For precinct-scale graphs, time limits with warm starts (and
+possibly coarsened merged-pair subproblems) will be necessary; the
+NC experiment (\S\ref{sec:exp-nc}) is the pending scalability test.
+
+\textbf{(L6) Detail tables are single-seed.} The detail tables are
+seed-42 runs with per-chain RNG streams; the ten-seed replication
+(\S\ref{sec:experiments}) confirms C on every seed, resolves B as a
+marginal $-2.3\%$, and confirms D as null, so the single-seed detail
+should be read alongside those between-seed numbers.
+
+\subsection{Future directions}\label{sec:disc-future}
+
+\begin{enumerate}
+  \item \textbf{A reversible hybrid.} Mix Chain E's exact local
+    kernel with a global move that is Metropolized toward the
+    \emph{same} target $\pi$ (e.g., a RevReCom-style tree move
+    accepted with its computable spanning-tree-count Hastings
+    ratio~\cite{cannon2022spanning,autry2023metropolized}), giving a
+    chain that is mobile across communities and exactly stationary for a
+    stated target. (A naive mixture of kernels reversible for
+    \emph{different} targets preserves neither.) A proof-of-concept on
+    the enumerated $5 \times 5$ fiber, where convergence is checkable
+    exactly, is the single most promising follow-up.
+  \item Replica exchange or parallel tempering between Chain C and
+    sampling chains, in the spirit of multiscale parallel
+    tempering~\cite{chuang2025multiscale}, to combine compactness with
+    coverage.
+  \item Integration with the cycle walk~\cite{deford2025cycle} or the
+    balanced up-down walk~\cite{akitaya2026bud} as outer kernels.
+  \item Benchmarking Chain C against exact cut-minimization optima on
+    the public instances of Validi and
+    Buchanan~\cite{validi2022political}, positioning it properly in
+    the matheuristic literature~\cite{brous2025recom}.
+  \item Multi-scale diffusion kernels (heat kernel, commute-time
+    kernel), and a kernel-faithful Cheeger sweep that scores
+    candidates by weighted cut (\S\ref{sec:rounding}).
+\end{enumerate}
+
+%════════════════════════════════════════════════════════════════════════════════
+\section{Conclusion}\label{sec:conclusion}
+%════════════════════════════════════════════════════════════════════════════════
+
+This paper introduced a kernel-flexible variational framework for
+local refinement in redistricting Markov chains, with one Laplacian energy
+$\alpha\,x^\top L x + \beta\,\|x - x_0\|^2$ under global population
+balance and three solution regimes. The continuous relaxation with sweep
+rounding (Chain B) is fast but adds no significant compactness on
+heterogeneous graphs; the integer program (Chain C) is a matheuristic
+that delivers a $20.3\%$ cut reduction across ten seeds (seed-42
+Cohen's $d = -2.51$) over
+Tempered ReCom on Iowa, though classical annealing baselines match
+its best plan quality at far lower cost, so its practical role is
+kernel-aware refinement anchored near a given plan rather than
+unconstrained compactness search (from Iowa's enacted plan it
+removes 15 of 47 cut edges while moving only 10 counties,
+deterministically); and the Metropolis-corrected
+randomized-rounding variant (Chain E) is, to our knowledge, the
+first optimization-based proposal in redistricting MCMC with an
+exact detailed-balance argument. A
+structural diagnostic of three fully enumerated partition fibers
+finds genuine community structure but no narrow corridors, so global
+tree moves and anchored local refinements are complementary for
+dynamical rather than topological reasons.
+Per-step balance and ESS audits discipline the empirical claims,
+including our own. Two constraint bugs we found and fixed
+during this work had inflated earlier measurements, and Chain E
+reveals that the whole ReCom family samples far more compactly than
+its nominal tempered targets.
+
+For the field, we hope two ideas outlast the specific chains. First,
+kernel choice (shared perimeter, density gradients, administrative
+boundaries) can be a first-class modeling decision \emph{inside}
+the proposal rather than a post-hoc filter, provided either the induced
+distribution is corrected (Chain E) or the method is labeled plainly
+as an optimizer (Chain C). Second, enumerated fibers are cheap,
+severe test beds. A chain's distance from its own computable target
+on 4\,006 states is a more informative diagnostic than any p-value on
+a single trace. The most promising next step is the reversible
+hybrid. It mixes Chain E's exact local kernel with a global tree move
+Metropolized toward the same target via its computable
+spanning-tree-count ratio, yielding a mobile chain whose stationary
+distribution is known, the property that court-facing ensemble
+analysis ultimately requires.
+
+%════════════════════════════════════════════════════════════════════════════════
+\appendix
+\section{Algorithm details and hyperparameters}\label{app:hyperparams}
+%════════════════════════════════════════════════════════════════════════════════
+
+\subsection{Common setup}\label{app:common}
+
+\begin{itemize}
+  \item Dual graph $G = (V, E)$ with vertex populations $p_v$ and
+    edge attributes (\texttt{shared\_perim} for Iowa).
+  \item $k$ districts, $\varepsilon$-population balance per
+    Equation~\eqref{eq:pop-balance}, enforced as a two-sided bound around the
+    global ideal on every move (Equation~\eqref{eq:balance-window})
+    and audited per step. The bare GerryChain \texttt{recom} proposal
+    is wrapped with an explicit whole-plan balance check
+    (\texttt{recom\_valid}), since its internal cut search validates
+    only one side of each split.
+  \item Initial partition from
+    \texttt{gerrychain.tree.recursive\_tree\_part}, redrawn until all
+    $k$ districts satisfy the global tolerance
+    (\texttt{balanced\_tree\_part}).
+  \item Step count: $5 \times 5$: $N = 1\,000$, burn-in $B = 100$;
+    Iowa: $N = 500$, $B = 100$; long-run validation
+    (\S\ref{sec:exp-longrun}): $2 \times 10^5$ (A) and
+    $10^5$ (E) steps.
+  \item Random seeds: base seed 42 with a distinct offset per chain
+    (independent streams for Python \texttt{random} and
+    \texttt{numpy}).
+\end{itemize}
+
+\subsection{Chain-specific parameters}\label{app:chains}
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{lll}
+\toprule
+Chain & Parameter & Value \\
+\midrule
+A & $\lambda$ (target temperature) & 0.10 \\
+B & $p_R$ (ReCom mix probability) & 0.5 \\
+B & $\alpha$ (Laplacian weight) & 10.0 \\
+B & $\beta$ (fidelity weight) & 1.0 \\
+B & Threshold scheme & Cheeger sweep, balance fallback \\
+B & Laplacian normalization & False (unnormalized $L$) \\
+C & $n_{\mathrm{iqp}}$ (IQP steps per outer iteration) & 10 \\
+C & $\alpha$ & 10.0 \\
+C & $\beta$ & 1.0 \\
+C & MIQP time limit & 5.0 s \\
+D & $p_R$ & 0.5 \\
+D & Weight randomization & $\mathcal{U}[1, 2]$ per edge \\
+D & Repair & False; balanced sweep in place of sign split \\
+E & $\alpha$ & 1.0 \\
+E & $\beta$ & 10.0 ($\beta \gg \alpha$ keeps $x^\star$ near-binary) \\
+E & Rounding & single-shot Bernoulli($x^\star$) \\
+E & $\lambda$ (MH target) & 0.10 \\
+\bottomrule
+\end{tabular}
+\caption{Locked-in hyperparameters for the six
+  chains.}\label{tab:hyperparams}
+\end{table}
+
+\subsection{Diversity controls}\label{app:diversity}
+
+\begin{itemize}
+  \item \textbf{Weight jitter}: multiply each edge weight by a
+    uniform draw from $\mathcal{U}[1, 2]$ before solving (SpecReCom-style). Tested on B
+    and C; raises Chain C's distinct-plan rate from $33\%$ to $59\%$
+    at a cost of under one cut. Always on for D (as in Davies et
+    al.'s Algorithm 2). Never
+    used in Chain E, whose detailed-balance argument requires the QP
+    map to be deterministic given the state and pair.
+  \item \textbf{Tabu}: forbid the last $K$ pairs chosen by the local
+    kernel (cleared whenever ReCom moves). $K = 3$ in our tests
+    sharpens compactness (the best mean cut count of any
+    configuration in the paper) at half the distinct-plan rate.
+\end{itemize}
+
+\subsection{Compute environment}\label{app:compute}
+
+\begin{itemize}
+  \item macOS (Darwin 23.6.0), Python 3.12.
+  \item Gurobi 13.0.2 (academic license) for QP and MIQP, at its
+    default thread count.
+  \item NetworkX 3.x for graph operations.
+  \item One Python process per run; no GPU. All experiments were run
+    on a 2024 MacBook.
+\end{itemize}
+
+%════════════════════════════════════════════════════════════════════════════════
+\section{Reproducibility checklist}\label{app:reproducibility}
+%════════════════════════════════════════════════════════════════════════════════
+
+\begin{itemize}
+  \item Code: \texttt{diffusion\_model/recom/} in the project
+    repository.
+  \item Modules: \texttt{problems.py} (graph setup, balanced initial
+    plans), \texttt{chains.py} (chain runners, balance-validated
+    ReCom wrapper, per-step audit), \texttt{qp\_model.py}
+    (QP/IQP/spectral/QP-MH step factories, global-ideal balance
+    windows), \texttt{diagnostics.py} (KL/TV diagnostics).
+  \item Orchestrators: \texttt{iowa\_target\_matched.py} (mode, seed,
+    and kernel as CLI arguments), \texttt{long\_run\_5x5.py}
+    (\S\ref{sec:exp-longrun}), \texttt{ablation\_sweep.py}
+    (\S\ref{sec:exp-ablations} and the supplementary sweep),
+    \texttt{ensemble\_compare.py}, \texttt{sa\_baselines.py}, and
+    \texttt{vanilla\_iqp\_cell.py}
+    (\S\ref{sec:exp-optimizer-baselines}),
+    \texttt{kernel\_traj\_metrics.py} and
+    \texttt{multikernel\_figure.py} (\S\ref{sec:exp-multikernel}),
+    \texttt{least\_change.py} (\S\ref{sec:exp-leastchange}),
+    \texttt{matrix\_tree\_targets.py} (the Matrix--Tree
+    quasi-target expectations of \S\ref{sec:exp-5x5}),
+    \texttt{db\_check\_2x3.py} (the machine-precision kernel check of
+    Remark~\ref{rem:qpmh-scope}), and
+    \texttt{ten\_seed\_stats.py} (between-seed statistics).
+  \item Outputs:
+    \texttt{iowa\_hybrid\_test\_out/target\_matched\_*\_seed*.npz},
+    each stamped with the full configuration (kernel, $\alpha$,
+    $\beta$, $n_{\mathrm{iqp}}$, balance mode, seed) and containing
+    per-step cut traces, timings, and balance-audit arrays, so every
+    table can be regenerated from its own artifact.
+  \item Fibers: \texttt{fiber\_5x5/} contains the $5 \times 5$ and
+    $4 \times 4$ enumeration scripts and precomputed
+    adjacency files.
+  \item Random seeds: base 42, per-chain offsets. Gurobi default seed
+    (deterministic given the same input).
+\end{itemize}
+
+\bibliographystyle{plain}
+\bibliography{ref}
+
+\end{document}
