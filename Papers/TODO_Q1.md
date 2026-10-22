@@ -9,7 +9,8 @@ earlier); everything they established is now in `paper.tex`.
 `paper.tex` is the rebuilt draft: theory, Chain E, calibration, the
 exact sampler against the forest move (kill test passed under the
 pre-registered criterion, about 2x on Iowa under pi_w, passenger under
-the tree-weighted measure), and the scaling experiment. Compiles clean.
+the tree-weighted measure), and the scaling experiment. Compiles clean
+at 25 pages (21 of body text) after the 2026-10-22 shortening pass.
 Two red placeholders: Section 5.7 (precinct scale) and one item in
 Appendix B.
 
