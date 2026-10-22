@@ -146,3 +146,28 @@ algorithms, best European fit) or ESA 2027 Track B (April); talk-only
 slots at EURO 2027, CMStatistics 2027, EMS 2027. Journal version to
 Statistics and Computing, with the scaling experiment and the
 precinct-scale run as the extension beyond the conference paper.
+
+## 2026-10-22. Scaling experiment: result
+
+Run by the local agent (Step 6 of TODO_Q1.md; figure in
+Papers/fig/forest_scaling.png). The exact tree move's acceptance at
+equilibrium decays like exp(-0.24 N) on N x N grids under
+compactness-tempered targets (pi_w at lam = 2 and the tree-weighted
+target at lam = 1 give the same curve), from 0.3 at N = 6 to 0.011 at
+N = 20, while under targets near the untempered tree measure it stays
+between 0.5 and 0.8. The per-proposal mismatch in the Hastings ratio
+grows in proportion to the boundary length. The hybrid / forest ESS
+ratio rises with N from about N = 12 once the local move's timestep is
+lowered to tau = 0.03 (1.5 to 2.4 at N = 12 to 16; N = 20 not converged
+for either chain in 100k steps). The statement for the paper: both
+moves lose acceptance with pair size under compactness targets, the
+local move has a dial for it (the move-size law) and the tree move has
+none. For the journal version, hold the expected local move at m units
+with tau_N = m / (2 |boundary_N|) instead of a fixed tau.
+
+What is now in hand for the conference version: theory, Chain E and
+its validation, the calibration, the kill test against Forest ReCom on
+Iowa (about 2x under pi_w, passenger near the tree measure), and the
+scaling figure. Missing for the journal version: precinct scale (North
+Carolina), the Gurobi-free local solve, and ESS per step reported
+beside ESS per second throughout.

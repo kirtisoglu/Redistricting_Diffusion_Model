@@ -868,6 +868,71 @@ Before the figure goes into the paper (not run; not in the plan):
 - [ ] Fix the "Expected" text in Section 4.7's write-up: pi_w at lam = 1
       is a mild target on grids, and the mismatch grows like N^2, not N.
 
+### Reading of Step 6 (cloud, 2026-10-22)
+
+Panels (a) and (b) are the structural result and they are clean. Under
+the two compactness-tempered targets (pi_w at lam = 2, tree-weighted at
+lam = 1) the forest move's acceptance at equilibrium falls from 0.30 and
+0.23 at N = 6 to 0.011 at N = 20, a straight line on the log scale, about
+exp(-0.24 N). Under the two targets near the untempered tree measure
+(pi_w at lam = 1, tree-weighted at lam = 0.1) it drifts from 0.79 to
+0.58 and 0.78 to 0.50 over the same range. The per-proposal mismatch,
+minus the mean of the two log terms of the Hastings ratio, grows from
+2.6 to 19 for the tempered targets, in proportion to the mean boundary
+length (6.9 to 26 cut edges), which is the Procaccia and Tucker-Foltz
+scaling made visible; for the near-proposal targets it stays below 1.
+The curves for pi_w at lam = 2 and the tree-weighted target at lam = 1
+lie on top of each other in both panels: the tree-count term is not
+what matters, the distance from the untempered tree measure is.
+
+Panel (c) is suggestive but under-powered where it matters most. At
+tau = 0.1 the local move's own acceptance falls with N (0.42 to 0.08),
+because its expected move grows with the boundary (the move-size law,
+2 tau |boundary|), so the follow-up at tau = 0.03 is the right
+comparison for the tempered targets; it restores local acceptance to
+0.74 to 0.41 and the hybrid / forest ESS-per-second ratios become
+
+    N:            6     8    10    12    16    20
+    pi_w, lam 2  0.83  1.03  1.05  1.86  1.72  3.78
+    tree, lam 1  0.79  0.89  1.20  1.53  2.44  1.32
+
+with per-step ratios (implementation free) 0.78, 0.94, 0.91, 1.60, 1.46,
+3.24 and 0.76, 0.80, 1.03, 1.31, 2.11, 1.13. The rise with N is the
+prediction and it is there from N = 12. The N = 20 cells are not
+usable as numbers: forest ESS 62 and 77, hybrid 87 to 202, and the
+level check fails (z = -2.2 and -3.1), so neither chain is at
+equilibrium in 100,000 steps there. The paper reports the ratio for
+N <= 16 and says N = 20 is beyond the budget of either chain, or runs
+N = 20 four to eight times longer (Step 6b below).
+
+The asymmetry the paper can now state. Both moves lose acceptance as
+the pair grows under a compactness-tempered target. The local move has
+a dial for it, the move-size law, and tau = 0.03 holds its acceptance
+near 0.5 at N = 16; the tree move has no dial, since its proposal is the
+untempered tree measure whatever the target, and its acceptance is set
+by the mismatch, which grows with the boundary. That is the structural
+reason an exact sampler for compactness targets needs a local component,
+and it is the sentence Section 4.7 should end on. For the journal
+version, the schedule tau_N = m / (2 |boundary_N|) from Corollary 4.3,
+holding the expected move at m units for every N, is the principled
+version of the tau = 0.03 rerun and worth one more column.
+
+### Step 6b, optional: N = 20 to convergence
+
+Only if the N = 20 cells are wanted as numbers rather than as "beyond
+budget". Run the two tempered targets at tau = 0.03 with 400,000 steps
+(four times the run-sheet count, about 2.5 hours per chain, the four
+chains in parallel):
+
+    python3 recom/forest_scaling_parallel.py chain 20 pi:2 forest
+    python3 recom/forest_scaling_parallel.py chain 20 pi:2 hybrid
+    python3 recom/forest_scaling_parallel.py chain 20 tree:1 forest
+    python3 recom/forest_scaling_parallel.py chain 20 tree:1 hybrid
+
+after setting TAU = 0.03 and the step count in the driver's
+RUN_SHEET_ARGS, writing to a separate npz name so the main artifact is
+untouched. Pass criterion as before: |z| < 2 between the chains' means.
+
 ## Items still open from the previous version of this file
 
 Carried over so they are not lost; none of them should be touched before
