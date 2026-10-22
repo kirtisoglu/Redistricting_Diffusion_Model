@@ -557,6 +557,56 @@ close to the threshold, which the pre-registered result is not, and the
 p = 0.3 question it was meant to inform was answered by the two extra long
 runs above.
 
+## Step 6. The scaling experiment (added 2026-10-22, after the verdict)
+
+Why. The kill test gives one number on one state. The paper's thesis is
+that the exact tree move is an independence sampler from the untempered
+spanning-tree measure on balanced splits, so its acceptance falls as the
+target's conditional on a merged pair moves away from that measure, and
+the distance grows with the pair size at fixed temperature; the local
+move's ratio involves a one-unit boundary change and does not. On Iowa
+the tree-weighted control at the paper's mild temperature happened to
+sit next to the proposal (forest acceptance 0.7, local move a passenger)
+while pi_w sat far from it through the tree-count term (acceptance 0.17,
+hybrid about 2x). The scaling experiment shows the mechanism directly, on
+grids, for four targets, and is the section the student should own.
+
+Prototype (cloud, 20,000 steps, hybrid chain, forest acceptance at
+equilibrium against grid side N = 6, 10, 14): pi at lam = 1: 0.79, 0.70,
+0.63 with the log tree-count ratio -0.9, -2.0, -3.8; pi at lam = 2:
+0.29, 0.12, 0.044; tree-weighted at lam = 1: 0.23, 0.085, 0.028. The
+collapse is fastest under the strongly tempered targets, which is the
+compactness regime practitioners ask for, and it happens whether or not
+the target carries tree weights.
+
+Run (about 6 hours serial on the cloud machine's timings; the three
+largest sizes dominate and can run in parallel by passing one N each):
+
+    python3 recom/forest_scaling.py 50000 42 6,8,10,12,16,20 pi:1,pi:2,tree:0.1,tree:1 0.3 --fig | tee recom/iowa_hybrid_test_out/forest_scaling_seed42.log
+
+or, in parallel, one size per process (each writes the same npz name, so
+pass different seeds or run sequentially; simplest is three processes:
+`6,8,10,12`, `16`, `20`, each with its own seed 42, 43, 44, then merge the
+tables by hand; the figure needs one npz, so the serial command is
+preferred if time allows).
+
+Expected: panel (a) flat near 0.7 only for tree:0.1, decaying for the
+other three, fastest for tree:1 and pi:2; panel (b) the per-proposal
+mismatch growing roughly linearly in N; panel (c) the hybrid / forest
+ESS ratio growing with N for the three decaying targets and staying
+below 1 for the control. If (c) does not rise for pi:2 and tree:1 at
+N >= 12, the local move's own acceptance is also collapsing (it did fall
+from 0.42 to 0.20 between N = 6 and 14 in the prototype) and the paper's
+move-size rule says to lower tau; rerun those two targets with tau = 0.03
+(`TAU` at the top of the script) before concluding.
+
+Writes `forest_scaling_seed42.npz` and `Papers/fig/forest_scaling.{pdf,png}`.
+Commit both with the log.
+
+### Results
+
+(paste the table; keep the figure)
+
 ## Items still open from the previous version of this file
 
 Carried over so they are not lost; none of them should be touched before

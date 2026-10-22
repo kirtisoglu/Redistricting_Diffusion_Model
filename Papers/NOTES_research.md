@@ -86,6 +86,34 @@ fixes, both for the paper regardless of language:
    `hybrid.py`; do it before the journal version, after Step 3, since
    it changes cost but not the proposal law.
 
+## 2026-10-22. Correction: what the tree move is an independence sampler from
+
+The 2026-10-21 entries below say the local move helps "off the tree
+measure" and is a passenger "on the tree-weighted target". The grid
+prototype (see TODO_Q1.md, Step 6) shows the right statement is one
+level up. The forest move proposes a balanced split from the
+UNTEMPERED spanning-tree measure, whatever the target. Its acceptance at
+equilibrium is governed by the distance between the target's
+conditional on the pair and that measure, through two terms of the
+Hastings ratio: the target ratio and the tree-count ratio. Under pi_w
+the tree-count term carries the mismatch (negative, growing with
+boundary length). Under a tree-weighted target it cancels and the
+tempering term carries it instead. On Iowa at the paper's mild
+temperature (lam equivalent to 0.1), the tree-weighted target is close
+to the untempered measure, so the forest move accepts 0.7 and the local
+move adds nothing; pi_w is far from it, so the forest move accepts 0.17
+and the hybrid roughly doubles ESS/s. On grids at lam = 1 or 2, both
+targets are far from the proposal and the forest move's acceptance
+collapses with N (0.23 to 0.03 for tree-weighted lam = 1 between N = 6
+and 14; 0.29 to 0.04 for pi_w lam = 2), which is the compactness regime
+practitioners ask for. So the claim for the paper is: an exact tree
+move serves one family of targets well, the mildly tempered tree
+measure; for compactness targets away from it, in either direction, its
+acceptance decays with pair size and the diffusion move is the
+component that keeps moving. The paper's tree-weighted control is then
+correctly described as "a target near the proposal", not as "the tree
+move's home ground" in general.
+
 ## 2026-10-21. Showing that the tree step needs a local move
 
 The structural argument, to pursue after the kill test is decided

@@ -238,18 +238,22 @@ class TauCache:
 # ─── the moves ───────────────────────────────────────────────────────────────
 
 def forest_log_alpha(tgt, asn, new, d1, d2, Vi, Vj, A, B, T_i, T_j, T_A, T_B,
-                     nodes, lo, hi, lt_i, lt_j, lt_A, lt_B):
+                     nodes, lo, hi, lt_i, lt_j, lt_A, lt_B, parts=None):
     """log of the Hastings ratio of the forest move. Shared by the chain
-    and the analytic check so the check validates the implementation."""
+    and the analytic check so the check validates the implementation.
+    If `parts` is a dict it receives the four terms separately."""
     graph = tgt.graph
     S_fwd = proposal_sum(graph, T_A, T_B, A, B, nodes, tgt.pop, lo, hi)
     S_rev = proposal_sum(graph, T_i, T_j, Vi, Vj, nodes, tgt.pop, lo, hi)
     bp_old = len(border_pairs_set(asn, graph))
     bp_new = len(border_pairs_set(new, graph))
-    return ((tgt.log_pi(new) - tgt.log_pi(asn))
-            + (lt_i + lt_j - lt_A - lt_B)
-            + math.log(S_rev) - math.log(S_fwd)
-            + math.log(bp_old) - math.log(bp_new))
+    c_pi = tgt.log_pi(new) - tgt.log_pi(asn)
+    c_tau = lt_i + lt_j - lt_A - lt_B
+    c_S = math.log(S_rev) - math.log(S_fwd)
+    c_bp = math.log(bp_old) - math.log(bp_new)
+    if parts is not None:
+        parts.update(pi=c_pi, tau=c_tau, S=c_S, bp=c_bp)
+    return c_pi + c_tau + c_S + c_bp
 
 
 def forest_step(tgt, asn, trees, ideal, eps, cache, max_tree_draws=MAX_TREE_DRAWS):
@@ -262,7 +266,7 @@ def forest_step(tgt, asn, trees, ideal, eps, cache, max_tree_draws=MAX_TREE_DRAW
     nodeset = set(nodes)
     adj = {v: [u for u in graph.neighbors(v) if u in nodeset] for v in nodes}
     rec = dict(kind="forest", feasible=False, accepted=False, log_alpha=np.nan, draws=0,
-               log_tau_ratio=np.nan)
+               log_tau_ratio=np.nan, log_pi_ratio=np.nan)
 
     lo, hi = (1 - eps) * ideal, (1 + eps) * ideal
     bal = []
@@ -292,11 +296,13 @@ def forest_step(tgt, asn, trees, ideal, eps, cache, max_tree_draws=MAX_TREE_DRAW
     lt_j = cache.get(d2, Vj)
     lt_A = log_tau(graph, list(A))
     lt_B = log_tau(graph, list(B))
-    rec["log_tau_ratio"] = lt_i + lt_j - lt_A - lt_B
+    parts = {}
     la = forest_log_alpha(tgt, asn, new, d1, d2, Vi, Vj, A, B,
                           trees[d1], trees[d2], T_A, T_B,
-                          nodes, lo, hi, lt_i, lt_j, lt_A, lt_B)
+                          nodes, lo, hi, lt_i, lt_j, lt_A, lt_B, parts=parts)
     rec["log_alpha"] = la
+    rec["log_tau_ratio"] = parts["tau"]
+    rec["log_pi_ratio"] = parts["pi"]
     if math.log(random.random() + 1e-300) < la:
         rec["accepted"] = True
         new_trees = dict(trees)
@@ -347,6 +353,7 @@ def run_forest_hybrid(tgt, init_asn, ideal, eps, n_steps, p_local, alpha, beta,
     fast = np.zeros(n_steps, dtype=bool)
     draws = np.zeros(n_steps, dtype=np.int16)
     ltr = np.full(n_steps, np.nan)
+    lpr = np.full(n_steps, np.nan)
     ids = np.full(n_steps, -1, dtype=np.int64)
     t0 = time.perf_counter()
     for t in range(n_steps):
@@ -360,6 +367,7 @@ def run_forest_hybrid(tgt, init_asn, ideal, eps, n_steps, p_local, alpha, beta,
             kind[t] = 0
             draws[t] = r["draws"]
             ltr[t] = r["log_tau_ratio"]
+            lpr[t] = r["log_pi_ratio"]
         feas[t] = r["feasible"]
         acc[t] = r["accepted"]
         wc[t] = tgt.wcut(asn)
@@ -375,7 +383,8 @@ def run_forest_hybrid(tgt, init_asn, ideal, eps, n_steps, p_local, alpha, beta,
                   f"acc(local) {acc[:t+1][k1].mean() if k1.any() else float('nan'):.3f}",
                   flush=True)
     return dict(wcut=wc, ncut=nc, kind=kind, feasible=feas, accepted=acc,
-                flips=flips, fast=fast, draws=draws, log_tau_ratio=ltr, ids=ids,
+                flips=flips, fast=fast, draws=draws, log_tau_ratio=ltr,
+                log_pi_ratio=lpr, ids=ids,
                 wall=time.perf_counter() - t0, final=asn, final_trees=trees)
 
 
