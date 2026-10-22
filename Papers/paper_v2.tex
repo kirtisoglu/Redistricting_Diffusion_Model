@@ -503,7 +503,7 @@ this paper.
 
 \begin{table}[htbp]
 \centering
-\small
+\footnotesize
 \begin{tabular}{llll}
 \toprule
 Chain & Method & Mechanism & Stationarity claim \\
@@ -1061,7 +1061,7 @@ ratio~\cite{cannon2022spanning,autry2023metropolized} and mixes
 \emph{that} kernel with E, which is the construction of
 \S\ref{sec:hybrid}.
 
-\paragraph{On the tempered baseline (Chain A).} Our Tempered ReCom
+\paragraph{On the tempered baseline (Chain A).} \sloppy Our Tempered ReCom
 baseline applies the filter $\min(1, \exp(-\lambda \Delta|\partial P|))$
 over the ReCom proposal, which \emph{assumes a symmetric proposal}.
 ReCom's proposal is not symmetric; the true Hastings ratio involves
@@ -1086,6 +1086,7 @@ the same initial plan (Table~\ref{tab:mobility}).
 \begin{table}[htbp]
 \centering
 \small
+\setlength{\tabcolsep}{4pt}
 \begin{tabular}{rrrrrrrr}
 \toprule
 $\tau$ & $\E[\#\mathrm{flips}]$ & single-flip share & feasible $\mid$ single
@@ -1412,11 +1413,11 @@ is the same law whatever the target.
 
 \begin{table}[htbp]
 \centering
-\small
+\footnotesize
 \begin{tabular}{lrrrrrrr}
 \toprule
-target & $\Pr[\text{tree balanced}]$ & accept $\mid$ feasible &
- \multicolumn{4}{c}{mean of each log term} & share with $\tau$-term $< e^{-2.3}$ \\
+target & $\Pr[\text{balanced}]$ & acc.\ $\mid$ feas. &
+ \multicolumn{4}{c}{mean of each log term} & share, $\tau$-term $< e^{-2.3}$ \\
 \cmidrule(lr){4-7}
  & & & target & tree count & $S$ & bp & \\
 \midrule
@@ -1844,10 +1845,11 @@ than the forest step it displaces before any cost is counted.
 
 \begin{table}[htbp]
 \centering
-\small
+\footnotesize
+\setlength{\tabcolsep}{4pt}
 \begin{tabular}{llrrrrrrrr}
 \toprule
-Target & Seed & \multicolumn{2}{c}{ESS} & \multicolumn{2}{c}{ESS/s} & ratio & $z$ & \multicolumn{2}{c}{quarter means agree} \\
+Target & Seed & \multicolumn{2}{c}{ESS} & \multicolumn{2}{c}{ESS/s} & ratio & $z$ & \multicolumn{2}{c}{quarter means} \\
 \cmidrule(lr){3-4}\cmidrule(lr){5-6}\cmidrule(lr){9-10}
  & & F & H & F & H & & & F & H \\
 \midrule
@@ -2266,7 +2268,7 @@ Table~\ref{tab:hyperparams} lists every locked value.
 
 \begin{table}[htbp]
 \centering
-\small
+\footnotesize
 \begin{tabular}{lll}
 \toprule
 Chain & Parameter & Value \\
@@ -2371,7 +2373,8 @@ method-dependent descriptive statistics.
 
 \begin{table}[htbp]
 \centering
-\small
+\scriptsize
+\setlength{\tabcolsep}{3pt}
 \begin{tabular}{lrrrlrrr}
 \toprule
 & \multicolumn{4}{c}{Community structure}
@@ -2484,6 +2487,8 @@ detection method) and read it as motivating evidence, not proof.
 \section{Reproducibility checklist}\label{app:reproducibility}
 %════════════════════════════════════════════════════════════════════════════════
 
+\begingroup
+\raggedright
 \begin{itemize}
   \item Code: \texttt{diffusion\_model/recom/} in the project
     repository.
@@ -2547,6 +2552,7 @@ detection method) and read it as motivating evidence, not proof.
   \item Precinct scale: \todo{data file, commands and artifacts of
     \S\ref{sec:exp-precinct}.}
 \end{itemize}
+\endgroup
 
 \bibliographystyle{plain}
 \bibliography{ref}
