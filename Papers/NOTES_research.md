@@ -1,173 +1,62 @@
 # Research notes
 
-Running notes from the October 2026 sessions. Ideas, open questions and
-follow-up projects that are not part of the current paper's run sheet
-(`TODO_Q1.md`). Add to the end; date each entry.
+Ideas and follow-up projects outside the current paper. Add to the end;
+date each entry. Entries whose content is now in `paper.tex` have been
+removed; see git history before 2026-10-22 for them.
 
 ## 2026-10-21. Urban vs rural from topology (DeFord's problem)
 
-**The problem as DeFord states it.** How much of the full geographic
-information is contained in the dual graph? Urban and rural units are
-easy to tell apart geometrically (population, area); given only the
-graph, can the same classification be recovered, and if not, what
-additional information is necessary?
+**The problem.** How much of the full geographic information is
+contained in the dual graph? Urban and rural units are easy to tell
+apart geometrically (population, area); given only the graph, can the
+same classification be recovered, and if not, what additional
+information is necessary?
 
 **Relation to the paper.** Converse, not the same. The density kernel
-takes population and area as given attributes and asks how to sample
-with them. DeFord asks whether the attributes are already implied by
-the topology. We are downstream of his question. The kernel is,
-however, exactly a formalization of "additional information", and an
-exact sampler for kernel-weighted targets is the instrument that
-measures what each piece of information changes in an ensemble.
+takes population and area as given and asks how to sample with them;
+DeFord asks whether they are implied by the topology. The kernel is a
+formalization of "additional information", and an exact sampler for
+kernel-weighted targets measures what each piece of information
+changes in an ensemble. The topology should know something: urban
+precincts are small, so the dual graph is dense there, and the
+spanning-tree measure is sensitive to that.
 
-**Why the topology should know something.** Urban precincts are small,
-so the dual graph is dense there: more vertices per unit area, higher
-degree, shorter cycles. The spanning-tree measure is sensitive to that
-structure (this is part of why ReCom ensembles behave differently in
-cities), so even the uniform-kernel target carries some density
-information through the graph alone.
+**Experiment with our tools** (needs a precinct graph): sample the
+uniform-kernel target (topology only) and the density-kernel target on
+the same graph; measure the share of cut edges crossing an urban-rural
+boundary against the share expected if boundaries ignored density. If
+alignment is already there under the uniform kernel, the topology knows
+where the cities are; if only under the density kernel, the kernel is
+the missing information, quantified.
 
-**Experiment that answers him with our tools** (needs a precinct
-graph; the 5x5 grid is homogeneous by construction and Iowa counties
-are too uniform in size):
+**Student project (separate paper, student first author).** Predict
+urban or rural from graph features alone: degree, local vertex
+density, clustering, spectral embedding coordinates, distance to
+high-degree cores; labels from census density or an official
+urban-area indicator; an interpretable classifier and a map of where
+it fails (suburbs, small towns, water boundaries). Closing section: the
+sampler experiment above.
 
-1. Sample the uniform-kernel target on a precinct graph (topology
-   only). Measure alignment of cut edges with the density gradient,
-   e.g. the share of cut edges that cross an urban-rural boundary
-   against the share expected if boundaries ignored density.
-2. Sample the density-kernel target. Measure the same.
-3. Reading: alignment already present under the uniform kernel means
-   the topology knows where the cities are (partial yes). Alignment
-   only under the density kernel means the information is not in the
-   topology and the kernel quantifies the missing piece.
+## 2026-10-21. Informed marked-edge selection for MEW
 
-Needs: `archive/diffusion_model/mew/data/NC_VTD.json` restored to
-`diffusion_model/mew/data/` (the `nc` mode of `problems.py` reads it),
-and a timing probe of the forest move at precinct scale first.
+The QP-scored marked-edge selection of the earlier `qp_proposal.tex`
+is deterministic, so as written it has the same zero-reverse-density
+defect as a Cheeger sweep. Replace the argmin with a Boltzmann draw
+over marked sets with computable density (sample the k-1 marked edges
+sequentially from a softmax of the subtree-population score); the MEW
+degeneracy ratio handles the lift and the chain is exactly correctable.
+Add the boundary cycle step already proved reversible in
+`picard_quotient.tex`. Competitor to beat: BUD, which removes balance
+rejection by construction at the same cubic degeneracy cost. Not a
+second paper; at most a section of this one if the diffusion move's
+case needed a second instance.
 
-**Student project (separate paper, student as first author).** The
-classification half of the question: predict urban or rural from
-graph features alone. Features: degree, local vertex density,
-clustering coefficient, spectral embedding coordinates (leading
-Laplacian eigenvectors), distance to high-degree cores. Labels: census
-population density thresholded, or an official urban-area indicator.
-Model: anything interpretable first (logistic regression, gradient
-boosting), with a map of where it fails, since the failures are the
-scientific content (suburbs, small rural towns, water boundaries).
-Closing section: the sampler experiment above, showing what the
-recovered classification changes in an ensemble. Fits the student's
-timeline and gives him a self-contained result to present.
-
-## 2026-10-21. Language and cost (why the community uses Julia or Rust)
-
-Where the time goes in the Python implementation on Iowa under pi:
-forest step about 1.1 ms (pure-Python Wilson draw, balanced-edge
-scan, two determinants, crossing-edge sums, retry multiplies the
-Wilson part); the paper's old tree move 0.18 ms (no sums, determinants
-only on the one percent of draws that balance); local step about
-1.5 ms, half of it Gurobi call overhead on the 20 to 50 percent of
-pairs where the balance window binds.
-
-Consequence for the claim: a compiled forest step would be 10x or more
-faster, the local step much less so (Gurobi overhead is language
-independent), so wall-clock ratios would move against the hybrid. Two
-fixes, both for the paper regardless of language:
-
-1. Report ESS per step beside ESS per second. Per step the hybrid at
-   p = 0.3 gets 3 to 5 times the forest move's effective samples while
-   taking 30 percent fewer forest steps, which is implementation free.
-   State the measured cost ratio and let the reader apply their own.
-2. Remove Gurobi from the local move. With one active balance
-   constraint the QP has a closed form: the unconstrained solve shifted
-   by a multiple of the population vector, found from one extra linear
-   solve and a scalar root, with the box constraints checked after.
-   Then a local step costs a few linear solves, in any language about
-   what a forest step costs. Small change to the solve path in
-   `hybrid.py`; do it before the journal version, after Step 3, since
-   it changes cost but not the proposal law.
-
-## 2026-10-22. Correction: what the tree move is an independence sampler from
-
-The 2026-10-21 entries below say the local move helps "off the tree
-measure" and is a passenger "on the tree-weighted target". The grid
-prototype (see TODO_Q1.md, Step 6) shows the right statement is one
-level up. The forest move proposes a balanced split from the
-UNTEMPERED spanning-tree measure, whatever the target. Its acceptance at
-equilibrium is governed by the distance between the target's
-conditional on the pair and that measure, through two terms of the
-Hastings ratio: the target ratio and the tree-count ratio. Under pi_w
-the tree-count term carries the mismatch (negative, growing with
-boundary length). Under a tree-weighted target it cancels and the
-tempering term carries it instead. On Iowa at the paper's mild
-temperature (lam equivalent to 0.1), the tree-weighted target is close
-to the untempered measure, so the forest move accepts 0.7 and the local
-move adds nothing; pi_w is far from it, so the forest move accepts 0.17
-and the hybrid roughly doubles ESS/s. On grids at lam = 1 or 2, both
-targets are far from the proposal and the forest move's acceptance
-collapses with N (0.23 to 0.03 for tree-weighted lam = 1 between N = 6
-and 14; 0.29 to 0.04 for pi_w lam = 2), which is the compactness regime
-practitioners ask for. So the claim for the paper is: an exact tree
-move serves one family of targets well, the mildly tempered tree
-measure; for compactness targets away from it, in either direction, its
-acceptance decays with pair size and the diffusion move is the
-component that keeps moving. The paper's tree-weighted control is then
-correctly described as "a target near the proposal", not as "the tree
-move's home ground" in general.
-
-## 2026-10-21. Showing that the tree step needs a local move
-
-The structural argument, to pursue after the kill test is decided
-(recorded here so it is not lost; see the session discussion):
-
-- Metropolized to a non-tree target, the tree move on a merged pair is
-  an independence sampler; its spectral gap is the infimum of proposal
-  over target, exponentially small in boundary length under any target
-  with a lighter compactness tail than the spanning-tree measure
-  (Procaccia and Tucker-Foltz). The penalty grows with pair size. The
-  local move's ratio depends only on the boundary change and does not.
-- Measured: under the tree-weighted target the forest move's ESS on
-  Iowa is about 10,000 per 200,000 steps; under pi, 36 to 56. A factor
-  of 200 at identical step counts is the tree-count penalty in one
-  number.
-- Experiments: (1) scaling with pair size on grids 6x6 to 20x20, k = 2,
-  five percent tolerance, read the forest move's acceptance at the
-  hybrid's equilibrium, plot log acceptance against unit count, repeat
-  under the tree-weighted target as control; (2) exact spectral gaps of
-  the partition-level tree kernel alone and in mixture on the 193,128
-  state 5x5 fiber at eps = 0.2; (3) the precinct-scale freeze on North
-  Carolina. The first is the candidate section for the student.
-
-## 2026-10-21. Venues
+## 2026-10-22. Venues
 
 Decided: SIAM ACDA 2027 (proceedings, January deadline, student
 presents) and JSM 2027 (talk only, February abstract). European
-alternatives if preferred: SEA 2027 (February, experimental
-algorithms, best European fit) or ESA 2027 Track B (April); talk-only
-slots at EURO 2027, CMStatistics 2027, EMS 2027. Journal version to
-Statistics and Computing, with the scaling experiment and the
-precinct-scale run as the extension beyond the conference paper.
-
-## 2026-10-22. Scaling experiment: result
-
-Run by the local agent (Step 6 of TODO_Q1.md; figure in
-Papers/fig/forest_scaling.png). The exact tree move's acceptance at
-equilibrium decays like exp(-0.24 N) on N x N grids under
-compactness-tempered targets (pi_w at lam = 2 and the tree-weighted
-target at lam = 1 give the same curve), from 0.3 at N = 6 to 0.011 at
-N = 20, while under targets near the untempered tree measure it stays
-between 0.5 and 0.8. The per-proposal mismatch in the Hastings ratio
-grows in proportion to the boundary length. The hybrid / forest ESS
-ratio rises with N from about N = 12 once the local move's timestep is
-lowered to tau = 0.03 (1.5 to 2.4 at N = 12 to 16; N = 20 not converged
-for either chain in 100k steps). The statement for the paper: both
-moves lose acceptance with pair size under compactness targets, the
-local move has a dial for it (the move-size law) and the tree move has
-none. For the journal version, hold the expected local move at m units
-with tau_N = m / (2 |boundary_N|) instead of a fixed tau.
-
-What is now in hand for the conference version: theory, Chain E and
-its validation, the calibration, the kill test against Forest ReCom on
-Iowa (about 2x under pi_w, passenger near the tree measure), and the
-scaling figure. Missing for the journal version: precinct scale (North
-Carolina), the Gurobi-free local solve, and ESS per step reported
-beside ESS per second throughout.
+alternatives: SEA 2027 (February, experimental algorithms, best
+European fit) or ESA 2027 Track B (April); talk-only slots at EURO
+2027, CMStatistics 2027, EMS 2027. Journal version to Statistics and
+Computing, differing from the conference paper by the precinct-scale
+run and the per-pair timestep.

@@ -37,16 +37,8 @@
 \newtheorem{lemma}{Lemma}[section]
 \newtheorem{proposition}{Proposition}[section]
 \newtheorem{corollary}{Corollary}[section]
-\newtheorem{claim}{Claim}[section]
-\newtheorem{conjecture}{Conjecture}[section]
-\newtheorem{hypothesis}{Hypothesis}[section]
-\newtheorem{assumption}{Assumption}[section]
 \newtheorem{remark}{Remark}[section]
-\newtheorem{example}{Example}[section]
-\newtheorem{problem}{Problem}[section]
 \newtheorem{definition}{Definition}[section]
-\newtheorem{question}{Question}[section]
-\newtheorem{condition}{Condition}[section]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Math shorthands
@@ -54,10 +46,9 @@
 \newcommand{\N}{\mathbb{N}}
 \newcommand{\Z}{\mathbb{Z}}
 \newcommand{\E}{\mathbb{E}}
-\newcommand{\Q}{\mathbb{Q}}
 \newcommand{\R}{\mathbb{R}}
-\newcommand{\C}{\mathbb{C}}
 \newcommand{\norm}[1]{\left\lVert#1\right\rVert}
+\newcommand{\todo}[1]{\textcolor{red}{[#1]}}
 
 \allowdisplaybreaks
 
@@ -79,32 +70,38 @@
 \maketitle
 
 \begin{abstract}
-Recombination (ReCom) chains are the standard Markov chain Monte
-Carlo tool for sampling redistricting plans, and they are routinely
-run under a Metropolis filter that nominally targets a
-compactness-tempered distribution. We introduce a proposal built from
-graph diffusion. One convex energy on the merged pair of districts, a
-kernel-weighted Laplacian smoothness term plus a fidelity term that
-anchors each move to the current plan, is minimized under global
-population balance and rounded at random. The diffusion view yields a
-small theory of the proposal. Its optimum is a single linear solve
-whenever balance is slack, the expected number of units a proposal
-moves is an explicit high-pass filter norm with a provable ceiling,
-and mobility is governed by feasibility rather than by the Metropolis
-ratio, which gives a tuning rule no existing redistricting proposal
-has. Correcting the rounding with an exact Metropolis--Hastings step
+Recombination (ReCom) chains are the standard Markov chain Monte Carlo
+tool for sampling redistricting plans, and they are routinely run under
+a Metropolis filter that nominally targets a compactness-tempered
+distribution. We introduce a proposal built from graph diffusion. One
+convex energy on the merged pair of districts, a kernel-weighted
+Laplacian smoothness term plus a fidelity term that anchors each move to
+the current plan, is minimized under global population balance and
+rounded at random. The diffusion view yields a small theory of the
+proposal: its optimum is a single linear solve whenever balance is
+slack, the expected number of units a proposal moves is an explicit
+high-pass filter norm with a provable ceiling, and mobility is governed
+by feasibility rather than by the Metropolis ratio, which gives a tuning
+rule. Correcting the rounding with an exact Metropolis--Hastings step
 gives, to our knowledge, the first optimization-based redistricting
-proposal with a detailed-balance proof. Mixed with an exact tree move
-Metropolized to the same target, it yields a reversible sampler for
-kernel-weighted compactness distributions, validated against
-enumerated targets; the local kernel adds nothing on an exact-balance
-grid and is what reaches equilibrium on Iowa under perimeter and
-density targets. On the enumerated test bed we also show, at the
+proposal with a detailed-balance proof. Mixed with the forest-lifted
+recombination move Metropolized to the same target, it yields a
+reversible sampler for kernel-weighted compactness distributions,
+validated against enumerated targets. On Iowa it roughly doubles the
+effective samples per second of the forest move alone under perimeter
+and density targets, and adds nothing on the spanning-tree-weighted
+measure. The reason is structural, and we measure it: the tree move is
+an independence sampler from the untempered spanning-tree measure, so
+its acceptance decays exponentially with the size of the merged pair
+under any compactness-tempered target, while the local move has a dial
+for the same effect. On an enumerated test bed we also show, at the
 level of distributions, that plain and tempered ReCom do not sample
 their nominal target and sit close to the spanning-tree-weighted
-measure. The same energy solved as an integer program is an anchored
-refinement tool, evaluated as an optimizer in a companion paper.
+measure.
 \end{abstract}
+
+%% Rebuilt 2026-10-22 after the Forest ReCom kill test and the scaling
+%% experiment. Precinct-scale sections are placeholders marked \todo.
 
 %════════════════════════════════════════════════════════════════════════════════
 \section{Introduction}\label{sec:intro}
@@ -137,8 +134,8 @@ by merging two adjacent districts, sampling a uniform random spanning
 tree of the merged subgraph, and cutting an edge to recover a balanced
 bipartition. ReCom dramatically improved the mixing efficiency of
 redistricting MCMC and is now the workhorse of the field, with
-reversible~\cite{cannon2022spanning} and multi-scale~\cite{autry2020multiscale}
-extensions.
+reversible~\cite{cannon2022spanning}, forest-lifted~\cite{autry2023metropolized}
+and multi-scale~\cite{autry2020multiscale} extensions.
 
 \textbf{ReCom's blind spot.} The uniform spanning-tree split treats
 every edge of the merged subgraph identically. The proposed
@@ -157,6 +154,17 @@ locality-preserving fidelity term, and, as their authors
 acknowledge, each shifts the chain's stationary distribution in
 an uncharacterized, uncorrected way.
 
+\textbf{A second blind spot, which this paper measures.} Even the
+exact versions of the tree move, which Metropolize it to a stated
+target, propose from one fixed law, the spanning-tree measure on
+balanced splits of the merged pair. Whenever the target a practitioner
+wants is not close to that law, for instance a compactness-tempered
+target or a geography-weighted one, the Metropolis step has to undo
+the mismatch on every proposal, and the mismatch grows with the size
+of the merged pair. We show that the resulting acceptance decays
+exponentially in the pair size, which is the structural reason an
+exact sampler for such targets needs a second kind of move.
+
 \subsection{Contribution}\label{sec:intro-contribution}
 
 We introduce a diffusion proposal for ReCom-style MCMC and the exact
@@ -173,8 +181,7 @@ global per-district ideal (Equation~\eqref{eq:balance-window}). The
 Laplacian term $x^\top L x$ counts (or approximates) cut edges between
 the two sides; the fidelity term $\|x - x_0\|^2$ penalizes deviation
 from the current assignment, enforcing locality of each move. The
-paper makes three contributions, and a fourth item marks what is
-left to a companion paper.
+paper makes four contributions.
 
 \begin{enumerate}
   \item \textbf{A diffusion proposal with a theory of its own
@@ -190,47 +197,49 @@ left to a companion paper.
     current split (Proposition~\ref{prop:move-size}). That quantity
     grows like twice the timestep times the pair's boundary for small
     timesteps and is bounded above by half the merged pair for any
-    timestep (Corollary~\ref{cor:small-tau}), so mobility cannot be
-    bought by tuning. We verify each statement against the solver
-    and measure the missing factor, acceptance, directly. Given a
-    feasible proposal the Metropolis step accepts it at least 98
-    percent of the time; the chain's stickiness is entirely a
-    feasibility effect with an interior optimum in $\tau$
-    (\S\ref{sec:mobility}), and its mobility is given to within
-    counting noise by a two-swap law with an explicit Metropolis
-    factor, Equation~\eqref{eq:mobility-law}. To our knowledge no
-    other redistricting proposal comes with a rule for sizing its
-    moves.
+    timestep (Corollary~\ref{cor:small-tau}). Given a feasible
+    proposal the Metropolis step accepts it at least 98 percent of the
+    time; the chain's stickiness is a feasibility effect with an
+    interior optimum in $\tau$ (\S\ref{sec:mobility}), and its
+    mobility is given to within counting noise by a two-swap law,
+    Equation~\eqref{eq:mobility-law}.
 
   \item \textbf{An exactly reversible correction}
     (\S\ref{sec:qp-mh}). Correcting the rounding with an exact
     Metropolis--Hastings step yields Chain E, to our knowledge the
     first optimization-based redistricting proposal with a
     detailed-balance proof (Proposition~\ref{prop:qpmh-db}), stated
-    on labeled plans, where the proposal map is a bijection. The
-    proof identifies global anchoring of the balance window as the
-    property that keeps forward and reverse solves symmetric. We
+    on labeled plans, where the proposal map is a bijection. We
     verify the implemented kernel to machine precision on an
-    enumerated fiber (Remark~\ref{rem:qpmh-scope}) and, on the same
-    fiber, show by a batch-means test that a long run's occupancy
-    distribution is not distinguishable from the exact target
-    (\S\ref{sec:exp-2x3}). The ceiling of contribution 1 makes a
-    global move necessary for mobility, so we pair Chain E with an
-    exact tree move Metropolized to the same target
-    (\S\ref{sec:hybrid}), the reversible-recombination construction
-    stated at the partition level, and verify the mixture to machine
-    precision. On the enumerated fiber the mixture samples
-    kernel-weighted targets correctly and the local kernel adds no
-    mixing per second; on Iowa, where the tolerance makes single
-    flips feasible and a uniform tree edge rarely balances fifty
-    counties, matched two-million-step runs on two seeds give the
-    hybrid $3.1$ to $3.7$ times the tree move's effective samples
-    per second under the perimeter target and $4.7$ to $6.7$ under
-    density, at the same equilibrium (\S\ref{sec:exp-hybrid}).
+    enumerated fiber and show by a batch-means test that a
+    million-step run's occupancy distribution is not distinguishable
+    from the exact target (\S\ref{sec:exp-2x3}).
+
+  \item \textbf{An exact sampler for kernel-weighted compactness
+    targets, and a measurement of when its local component matters}
+    (\S\ref{sec:hybrid}, \S\ref{sec:exp-hybrid}--\S\ref{sec:exp-scaling}).
+    We lift Chain E to the spanning-forest state space and mix it with
+    the forest-lifted recombination move of Autry et
+    al.~\cite{autry2023metropolized}, Metropolized to an arbitrary
+    kernel-weighted target. The mixture is verified to machine
+    precision on an enumerated lifted fiber and against enumerated
+    targets on 4\,006 plans. On Iowa, under a criterion fixed before
+    the runs, the mixture gives $1.6$ to $2.3$ times the forest move's
+    effective samples per second under perimeter and density targets
+    on two seeds, and $0.8$ to $0.9$ times under the
+    spanning-tree-weighted tempered measure. We then show why. The
+    forest move is an independence sampler from the untempered
+    spanning-tree measure on balanced splits; on $N \times N$ grids its
+    acceptance at equilibrium falls like $e^{-0.24 N}$ under
+    compactness-tempered targets, with or without tree weighting, while
+    the per-proposal mismatch in its Hastings ratio grows in
+    proportion to the boundary length. The local move loses
+    acceptance with pair size too, but has a dial for it, the
+    move-size law; the tree move has none.
 
   \item \textbf{A ground-truth calibration of what the ReCom family
     samples, at the level of distributions}
-    (\S\ref{sec:exp-5x5}--\S\ref{sec:exp-longrun}). On a fully
+    (\S\ref{sec:exp-5x5}, \S\ref{sec:exp-iowa-calib}). On a fully
     enumerated $5 \times 5$ fiber we compute the spanning-tree-weighted
     measure for every state by the Matrix--Tree theorem and compare full
     empirical distributions against it and against the nominal tempered
@@ -238,22 +247,10 @@ left to a companion paper.
     The tempered chain's cut distribution is 220 floor standard
     deviations from its nominal target and close to, though
     distinguishable from, the tree-weighted tempered measure, while the
-    exact chain is indistinguishable from the nominal target and far
-    from the tree measure. The two chains separate exactly as theory
-    predicts, which makes exact on enumerated ground truth what
-    Clelland et al.~\cite{clelland2021compactness} observed
-    empirically.
-
-  \item \textbf{A companion optimizer.} The same energy solved as a
-    convex mixed-integer program inside a tempered chain is an
-    anchored, kernel-aware refinement tool in the matheuristic
-    lineage~\cite{brous2025recom,cannon2023voting}. It is not a
-    sampler, and its evaluation as an optimizer, against annealing
-    baselines and in a least-change setting, is the subject of a
-    companion paper~\cite{kirtisoglu2026companion}. A structural
-    diagnostic of the partition fiber
-    (Appendix~\ref{sec:fiber-corridors}) supports the main
-    contributions.
+    exact chain is indistinguishable from the nominal target. On Iowa
+    the exact sampler puts the nominal target's mean cut count near
+    $88$ and the tree-weighted measure's at $41$, where tempered ReCom
+    sits at $40$.
 \end{enumerate}
 
 \paragraph{Positioning.} The construction of Chain E, a deterministic
@@ -272,21 +269,21 @@ BUD~\cite{cannon2022spanning,deford2025cycle,mcwhorter2025marked,
 akitaya2026bud}, achieve computable transition probabilities by
 lifting to spanning-forest state spaces, while Chain E achieves the
 same property at the partition level; the two routes are
-complementary, and their global moves are the mobile component that
-our exact-but-local kernel provably lacks
-(Corollary~\ref{cor:small-tau}). Bonsai
-sampling~\cite{clelland2026bonsai} draws independent plans from a
-specified law without a chain and is the natural non-MCMC comparison
-for any known-target method. \S\ref{sec:related} positions the
-proposal against the weighted-tree, spectral, and matheuristic lines.
+complementary, and the forest move is the global component of our
+sampler. Bonsai sampling~\cite{clelland2026bonsai} draws independent
+plans from a specified law without a chain and is the natural non-MCMC
+comparison for any known-target method. \S\ref{sec:related} positions
+the proposal against the weighted-tree, spectral, and matheuristic
+lines.
 
 \paragraph{Roadmap.}\label{sec:intro-roadmap}
 \S\ref{sec:related} reviews related work and \S\ref{sec:background}
 sets up notation. \S\ref{sec:model} develops the proposal, its
-theory, and the exact chain; \S\ref{sec:experiments} reports the
-calibration, the convergence validation, the hybrid's validation and
-kill test, and the Iowa calibration. Appendices hold hyperparameters,
-the partition-fiber diagnostic, and a reproducibility checklist.
+theory, the exact chain, and the sampler; \S\ref{sec:experiments}
+reports the calibration, the convergence validation, the kill test
+against the forest move, the scaling experiment, and the Iowa
+calibration. Appendices hold hyperparameters and a reproducibility
+checklist.
 
 %════════════════════════════════════════════════════════════════════════════════
 \section{Related work}\label{sec:related}
@@ -301,11 +298,12 @@ produce highly irregular districts~\cite{deford2021recombination,
 najt2024empirical}. ReCom~\cite{deford2021recombination} introduced
 the spanning-tree merge-split move and is now standard. Extensions
 include Multi-Scale Merge--Split~\cite{autry2020multiscale} preserving
-nested communities (counties, precincts), Forest ReCom~\cite{autry2023metropolized},
-Sequential Monte Carlo~\cite{mccartan2023sequential} and its
-generalized form~\cite{osullivan2026generalized}, whose repetition
-effects are analyzed in~\cite{cannon2024repetition}, multiscale
-parallel tempering~\cite{chuang2025multiscale}, and reversible
+nested communities (counties, precincts), Metropolized forest
+recombination~\cite{autry2023metropolized}, Sequential Monte
+Carlo~\cite{mccartan2023sequential} and its generalized
+form~\cite{osullivan2026generalized}, whose repetition effects are
+analyzed in~\cite{cannon2024repetition}, multiscale parallel
+tempering~\cite{chuang2025multiscale}, and reversible
 recombination~\cite{cannon2022spanning} targeting the canonical
 spanning-tree distribution. The compactness-tempered target that
 practitioners run under a Metropolis filter, and that we audit here,
@@ -337,32 +335,37 @@ Edge weighting inside the ReCom proposal is not new, and we position
 our work against it explicitly. Clelland et
 al.~\cite{clelland2022colorado} replace the proposal's edge-weighting
 function with \emph{county-weighted trees} (intra-county edge
-weights drawn from the uniform distribution $\mathcal{U}[0, w]$ for a tunable scalar $w$) to reduce county splits in Colorado ensembles. GerryChain's
-region-aware ReCom~\cite{gerrychain2024} implements the same idea.
-User-specified surcharges are added to the randomized Kruskal weights
-for edges crossing designated region boundaries. Tapp~\cite{tapp2025compactness}
-modifies the ReCom tree-and-cut step to improve shape-based
-compactness at the proposal level. In all three, the weighting is an
-indicator- or attribute-indexed heuristic, and (as their authors
-acknowledge) the induced stationary distribution is uncharacterized
-and uncorrected. What the unweighted tree proposal itself induces is
-better understood. Clelland et al.~\cite{clelland2021compactness}
-measured ReCom ensembles on grids and precinct graphs and found the
-sampling probability of a plan to decay roughly exponentially in its
-cut length, and Procaccia and
+weights drawn from the uniform distribution $\mathcal{U}[0, w]$ for a
+tunable scalar $w$) to reduce county splits in Colorado ensembles.
+GerryChain's region-aware ReCom~\cite{gerrychain2024} implements the
+same idea. User-specified surcharges are added to the randomized
+Kruskal weights for edges crossing designated region boundaries.
+Tapp~\cite{tapp2025compactness} modifies the ReCom tree-and-cut step
+to improve shape-based compactness at the proposal level. In all
+three, the weighting is an indicator- or attribute-indexed heuristic,
+and (as their authors acknowledge) the induced stationary distribution
+is uncharacterized and uncorrected. What the unweighted tree proposal
+itself induces is better understood. Clelland et
+al.~\cite{clelland2021compactness} measured ReCom ensembles on grids
+and precinct graphs and found the sampling probability of a plan to
+decay roughly exponentially in its cut length, and Procaccia and
 Tucker-Foltz~\cite{procaccia2022compact} proved the underlying fact
 that compact plans have many spanning trees. Tapp, Proebsting, and
 Ramsay~\cite{tapp2025parameter} study how tolerance and
 county-preservation settings move ReCom ensembles and propose
 effective-sample-size diagnostics for them. Our calibration in
 \S\ref{sec:exp-5x5} makes the first of these observations exact on an
-enumerated fiber, at the level of full distributions. Conversely, the
-samplers with known targets cited above handle only unweighted
-spanning-tree/forest measures or other tree-count-based families. The
-gap this paper addresses sits at the intersection, namely a proposal
-that accepts an \emph{arbitrary} nonnegative edge kernel as a
-first-class input together with an exact accept/reject step against a
-stated target (\S\ref{sec:qp-mh}, \S\ref{sec:hybrid}).
+enumerated fiber, at the level of full distributions, and our scaling
+experiment in \S\ref{sec:exp-scaling} turns the second into a
+statement about acceptance: the same exponential that makes compact
+plans tree-rich is what an exact tree move has to pay, per proposal,
+to target anything else. Conversely, the samplers with known targets
+cited above handle only unweighted spanning-tree/forest measures or
+other tree-count-based families. The gap this paper addresses sits at
+the intersection, namely a proposal that accepts an \emph{arbitrary}
+nonnegative edge kernel as a first-class input together with an exact
+accept/reject step against a stated target (\S\ref{sec:qp-mh},
+\S\ref{sec:hybrid}).
 
 \paragraph{Optimization-based districting and matheuristics.}\label{sec:related-opt}
 
@@ -373,19 +376,19 @@ formulations~\cite{gurnee2021fairmandering}, multilevel
 multiobjective methods~\cite{swamy2023multiobjective},
 contiguity-constrained MIPs~\cite{validi2022imposing}, and cut-edge
 minimization solved to optimality at county/tract
-scale~\cite{validi2022political}. Dobbs et al.~\cite{dobbs2024facilitating} solve for minimal-change and
-midpoint plans under transfer distance to reference plans exactly by
-mixed-integer programming, which is the natural exact benchmark for
-any anchored refinement. Between the sampling and optimization
-families~\cite{becker2022redistricting}, hybrids are emerging. Short bursts~\cite{cannon2023voting} use ReCom
+scale~\cite{validi2022political}. Dobbs et al.~\cite{dobbs2024facilitating}
+solve for minimal-change and midpoint plans under transfer distance to
+reference plans exactly by mixed-integer programming. Between the
+sampling and optimization families~\cite{becker2022redistricting},
+hybrids are emerging. Short bursts~\cite{cannon2023voting} use ReCom
 as a stochastic optimizer; Brous and Shmoys~\cite{brous2025recom}
 replace the spanning-tree re-split with a Gurobi integer program
 inside an accept-if-better local search for majority-minority
-districts. The integer form of our energy, a convex MIQP refinement inside a
-recombination chain, belongs to this matheuristic line and is
-evaluated as an optimizer in the companion
-paper~\cite{kirtisoglu2026companion}. The proximal
-term $\beta\|x - x_0\|^2$ is the quadratic analogue of local
+districts. The integer form of our energy, a convex MIQP refinement
+inside a recombination chain, belongs to this matheuristic line; we
+note in \S\ref{sec:disc-future} what we found when we evaluated it as
+an optimizer, and do not pursue it here. The proximal term
+$\beta\|x - x_0\|^2$ is the quadratic analogue of local
 branching~\cite{fischetti2003local}, imposing a soft trust region
 around the incumbent.
 
@@ -454,7 +457,9 @@ for the set of valid plans. The \emph{cut edges} of a plan are
 and we call $|\partial P|$ the \emph{cut-edge count} of $P$. This
 quantity is the discrete analog of the perimeter of the district
 boundaries and serves as our primary compactness
-metric~\cite{duchin2018discrete}.
+metric~\cite{duchin2018discrete}. For a nonnegative edge kernel $w$ we
+write $w(\partial P) = \sum_{e \in \partial P} w_e$ for the
+\emph{weighted cut}.
 
 \begin{figure}[htbp]
   \centering
@@ -492,14 +497,12 @@ edge removal from a tree produces two connected components). This is
 the key advantage over single-precinct flip chains, which traverse the
 state space too slowly to be practically useful.
 
-\textbf{Chains compared.} Table~\ref{tab:five-chains} lists the
-chains of this paper. The companion paper evaluates the same energy
-solved as an integer program, together with a continuous relaxation
-and a spectral mixture, as optimizers.
+\textbf{Chains compared.} Table~\ref{tab:chains} lists the chains of
+this paper.
 
 \begin{table}[htbp]
 \centering
-\small
+\footnotesize
 \begin{tabular}{llll}
 \toprule
 Chain & Method & Mechanism & Stationarity claim \\
@@ -507,16 +510,19 @@ Chain & Method & Mechanism & Stationarity claim \\
 V & Vanilla ReCom~\cite{deford2021recombination} & spanning-tree split, always accept & unknown target \\
 A & Tempered ReCom & ReCom + MH on cuts (symmetric-$q$) & approximate \\
 E & QP-MH (this work, \S\ref{sec:qp-mh}) & QP + Bernoulli rounding + exact MH & \textbf{exact} \\
-T & Exact tree move (\S\ref{sec:hybrid}) & uniform tree, uniform edge, tree-count MH & \textbf{exact} \\
-H & Hybrid (this work, \S\ref{sec:hybrid}) & mixture of E and T, any kernel-weighted target & \textbf{exact} \\
+T & Partition-level tree move (\S\ref{sec:tree-partition}) & uniform tree, uniform edge, tree-count MH & \textbf{exact} \\
+F & Forest move (\S\ref{sec:forest}) & forest-lifted ReCom, balanced edge, exact MH & \textbf{exact} \\
+H & Hybrid (this work, \S\ref{sec:hybrid}) & mixture of F and lifted E, any kernel-weighted target & \textbf{exact} \\
 \bottomrule
 \end{tabular}
 \caption{The chains compared in this paper. The last column is the
-  chain's relationship to its stated target. Chains E, T and H carry
+  chain's relationship to its stated target. Chains E, T, F and H carry
   exact Metropolis--Hastings corrections; Chain A relies on the
   symmetric-$q$ approximation (\S\ref{sec:qp-mh}) and Chain V has
-  no stated target.}
-\label{tab:five-chains}
+  no stated target. Chain T is kept as the reference that explains
+  Chain A and as the baseline of an earlier version of this work;
+  Chain F is the baseline the sampler is judged against.}
+\label{tab:chains}
 \end{table}
 
 Tempered ReCom uses a Metropolis--Hastings filter targeting
@@ -540,8 +546,14 @@ weighted cut count for binary $x$, so minimizing it directly
 minimizes the discrete perimeter in the chosen kernel.
 
 %════════════════════════════════════════════════════════════════════════════════
-\section{The QP-diffusion model and its theory}\label{sec:model}
+\section{The QP-diffusion model, its theory, and the sampler}\label{sec:model}
 %════════════════════════════════════════════════════════════════════════════════
+
+The energy~\eqref{eq:core-energy} has three ingredients: the kernel
+that defines the Laplacian (\S\ref{sec:kernels}), the convex program
+on the merged pair (\S\ref{sec:qp-model}, with its spectral form
+\eqref{eq:freq-response}), and the balance window. The rest of the
+section builds the chains on top of it.
 
 \subsection{Locality kernels}\label{sec:kernels}
 
@@ -768,13 +780,13 @@ than ``solve a QP'' suggests, since it is one linear solve in the
 common case. The move size is a design dial with a known scale, so to
 propose moves of about $m$ units one sets
 $\alpha/\beta \approx m / (2|\partial_w|)$ while the small-timestep law
-holds. And the dial has a hard stop. No choice of $\alpha$ and
-$\beta$ can lift the expected move above half the merged pair, so
-mobility cannot be bought by tuning, which is the structural reason a
-global move is needed alongside the exact local chain
-(\S\ref{sec:mobility}, \S\ref{sec:hybrid}). The kernel enters
-through $|\partial_w|$, so a perimeter kernel takes larger steps
-exactly where the geographic border is long.
+holds; \S\ref{sec:exp-scaling} uses this dial. And the dial has a hard
+stop. No choice of $\alpha$ and $\beta$ can lift the expected move
+above half the merged pair, so mobility cannot be bought by tuning,
+which is the structural reason a global move is needed alongside the
+exact local chain (\S\ref{sec:mobility}, \S\ref{sec:hybrid}). The
+kernel enters through $|\partial_w|$, so a perimeter kernel takes
+larger steps exactly where the geographic border is long.
 
 \begin{figure}[htbp]
   \centering
@@ -817,14 +829,15 @@ a bipartition. The natural deterministic choice is a Cheeger
 sweep~\cite{chung1997spectral}, which sorts the entries of $x^\star$,
 scans the thresholds, keeps the balanced and connected candidate with
 the smallest cut, and repairs near-misses by flipping orphaned
-components to the other side. That is the rounding of the companion paper's
-continuous and integer refinement chains, and as a proposal it has a
-defect no repair fixes. An argmin-plus-sweep map is deterministic, so
-the reverse proposal has zero probability and the Hastings ratio
-degenerates; a chain built on it is a heuristic with no stationarity
-claim beyond ergodicity. \S\ref{sec:qp-mh} replaces the sweep with
-single-shot randomized rounding, which restores an everywhere-positive
-proposal density and an exact correction.
+components to the other side. As a proposal it has a defect no repair
+fixes. An argmin-plus-sweep map is deterministic, so the reverse
+proposal has zero probability and the Hastings ratio degenerates; a
+chain built on it is a heuristic with no stationarity claim beyond
+ergodicity. \S\ref{sec:qp-mh} replaces the sweep with single-shot
+randomized rounding, which restores an everywhere-positive proposal
+density and an exact correction. The same defect, in a different
+guise, is why the forest move of \S\ref{sec:forest} must keep the
+tree draw and the cut-edge draw random rather than optimized.
 
 \subsection{The exactly reversible QP-MH chain (Chain E)}\label{sec:qp-mh}
 
@@ -852,7 +865,7 @@ chain. One step of Chain E is as follows.
   \item Accept with probability
     \begin{equation}\label{eq:qpmh-accept}
       \min\Bigl(1,\;
-      e^{-\lambda(|\partial P'| - |\partial P|)}\,
+      \frac{\pi(P')}{\pi(P)}\,
       \frac{q(x_0 \mid P', \{i,j\})}{q(x' \mid P, \{i,j\})}\,
       \frac{|\mathrm{bp}(P)|}{|\mathrm{bp}(P')|}\Bigr),
     \end{equation}
@@ -862,10 +875,14 @@ chain. One step of Chain E is as follows.
     window~\eqref{eq:balance-window} are rejected outright.
 \end{enumerate}
 
+Here $\pi$ is any target on plans; the paper uses
+$\pi_w(P) \propto \exp(-\lambda\, w(\partial P))$ for a kernel $w$,
+which reduces to the tempered cut-count target for the uniform
+kernel, and in \S\ref{sec:hybrid} also the tree-weighted variant.
+
 \begin{proposition}[Detailed balance of Chain E]\label{prop:qpmh-db}
-Chain E satisfies detailed balance with respect to
-$\pi(P) \propto \exp(-\lambda |\partial P|)$ restricted to
-$\mathcal{P}_k(G; \varepsilon)$.
+Chain E satisfies detailed balance with respect to any target $\pi$ on
+$\mathcal{P}_k(G; \varepsilon)$ that is positive on valid plans.
 \end{proposition}
 
 Throughout, fix the deterministic edge kernel $w$ (weight jitter is
@@ -874,8 +891,8 @@ never used in this chain) and write $\Omega = \mathcal{P}_k(G;
 assignments in this subsection, so that a Bernoulli draw and its
 complement are distinct states and the proposal map is a bijection;
 on unlabeled partitions the map is two-to-one and the transition
-probability would need both terms. Since $\pi$ depends only on
-$|\partial P|$ it is label-invariant, and forgetting labels after
+probability would need both terms. Since $\pi$ depends only on the
+partition it is label-invariant, and forgetting labels after
 sampling recovers the unlabeled law. For a plan $P$ and an adjacent
 pair $\{i,j\} \in \mathrm{bp}(P)$ write $H = V_i \cup V_j$ and let
 $x_0(P) \in \{0,1\}^{V_H}$ denote the indicator of $V_i$ on $H$ (the
@@ -971,9 +988,8 @@ the density in~\eqref{eq:qpmh-accept} the same object. Hence
   \alpha(P, P') = \min\Bigl(1,\;
   \frac{\pi(P')}{\pi(P)}\,
   \frac{q_{\gets}}{q_{\to}}\,
-  \frac{|\mathrm{bp}(P)|}{|\mathrm{bp}(P')|}\Bigr),
+  \frac{|\mathrm{bp}(P)|}{|\mathrm{bp}(P')|}\Bigr).
 \]
-using $\pi(P')/\pi(P) = e^{-\lambda(|\partial P'| - |\partial P|)}$.
 Multiplying through,
 \[
   \pi(P)\, K(P, P') \;=\;
@@ -1020,11 +1036,12 @@ binary relabeling of $H$ has positive proposal probability by
 Lemma~\ref{lem:qpmh-regular}(iii), but irreducibility of Chain E
 across pairs on general $(G, k, \varepsilon)$ is not established, so
 convergence statements are for the chain restricted to its
-communicating class. On the enumerated $5 \times 5$ fiber the chain's cut distribution is
-indistinguishable from its target (\S\ref{sec:exp-longrun}), on the
-$2 \times 3$ fiber a million-step run's full occupancy distribution
-is (\S\ref{sec:exp-2x3}), and the principled route to global mobility
-is the mixture of \S\ref{sec:hybrid}.
+communicating class. On the enumerated $5 \times 5$ fiber the chain's
+cut distribution is indistinguishable from its target
+(\S\ref{sec:exp-longrun}), on the $2 \times 3$ fiber a million-step
+run's full occupancy distribution is (\S\ref{sec:exp-2x3}), and the
+principled route to global mobility is the mixture of
+\S\ref{sec:hybrid}.
 \end{remark}
 
 Chain E trades mobility for exactness. Because a proposal must be
@@ -1033,18 +1050,17 @@ Corollary~\ref{cor:small-tau} caps how far a draw can reach, the
 chain behaves as a strictly local sampler. \S\ref{sec:mobility}
 measures exactly why, and the answer is feasibility rather than the
 Metropolis ratio. We therefore present Chain E as the local component
-of the sampler rather than as a practical standalone sampler. The
-principled route to mobility is precise. Mixing E with a
-global kernel preserves $\pi$ only if that kernel is \emph{also}
-$\pi$-invariant. RevReCom as published is reversible with respect to
-its spanning-tree measure, not our tempered $\pi$, so a naive
-E/RevReCom mixture would preserve neither; the correct construction
+of the sampler rather than as a practical standalone sampler. Mixing
+E with a global kernel preserves $\pi$ only if that kernel is
+\emph{also} $\pi$-invariant. RevReCom as published is reversible with
+respect to its spanning-tree measure, not an arbitrary $\pi$, so a
+naive mixture would preserve neither; the correct construction
 Metropolizes the tree move toward $\pi$ using its computable Hastings
 ratio~\cite{cannon2022spanning,autry2023metropolized} and mixes
 \emph{that} kernel with E, which is the construction of
 \S\ref{sec:hybrid}.
 
-\paragraph{On the tempered baseline (Chain A).} Our Tempered ReCom
+\paragraph{On the tempered baseline (Chain A).} \sloppy Our Tempered ReCom
 baseline applies the filter $\min(1, \exp(-\lambda \Delta|\partial P|))$
 over the ReCom proposal, which \emph{assumes a symmetric proposal}.
 ReCom's proposal is not symmetric; the true Hastings ratio involves
@@ -1069,6 +1085,7 @@ the same initial plan (Table~\ref{tab:mobility}).
 \begin{table}[htbp]
 \centering
 \small
+\setlength{\tabcolsep}{4pt}
 \begin{tabular}{rrrrrrrr}
 \toprule
 $\tau$ & $\E[\#\mathrm{flips}]$ & single-flip share & feasible $\mid$ single
@@ -1111,19 +1128,19 @@ proposals flip nothing. We report units moved per step instead.
 
 Units moved per step has an interior maximum near $\tau = 0.3$. The
 setting locked in Appendix~\ref{app:hyperparams}, $\tau = 0.1$, sits
-about $3.8\times$ below it, so on this fiber the chain as run in
-\S\ref{sec:experiments} is mistuned by its own theory and can be
-improved for free; \S\ref{sec:exp-hybrid} shows the optimum does not
-transfer to Iowa, where the balance window binds more often at larger
-$\tau$. Even at the optimum a thousand steps move about 35 units, and
-Corollary~\ref{cor:small-tau} says no timestep can lift the
-per-proposal reach above half the merged pair. Both statements
-matter. Chain E can be several times more mobile than shown, and
-several times is not enough, which is why a global move is required
-(\S\ref{sec:hybrid}). Under a loose tolerance single flips become
-feasible and mobility gains a first-order term in $\tau$, which is why
-the same chain climbs steadily on Iowa (\S\ref{sec:exp-iowa-calib})
-while freezing on the exact-balance grid.
+about $3.8\times$ below it, so on this fiber the chain can be improved
+for free; \S\ref{sec:exp-hybrid} shows the optimum does not transfer
+to Iowa, where the balance window binds more often at larger $\tau$,
+and \S\ref{sec:exp-scaling} shows that on large pairs the dial has to
+be turned the other way. Even at the optimum a thousand steps move
+about 35 units, and Corollary~\ref{cor:small-tau} says no timestep can
+lift the per-proposal reach above half the merged pair. Both
+statements matter. Chain E can be several times more mobile than
+shown, and several times is not enough, which is why a global move is
+required (\S\ref{sec:hybrid}). Under a loose tolerance single flips
+become feasible and mobility gains a first-order term in $\tau$, which
+is why the same chain climbs steadily on Iowa
+(\S\ref{sec:exp-iowa-calib}) while freezing on the exact-balance grid.
 
 \textbf{The mobility law.} On an exact-balance fiber the cheapest
 feasible draw is a swap, one unit $u \in V_i$ and one unit $v \in V_j$
@@ -1179,27 +1196,27 @@ expected for a second-order quantity. Under a loose tolerance single
 flips become feasible, the law gains a first-order channel, and the
 same calculation applies with single units in place of swaps.
 
-\subsection{An exact tree move, and the reversible hybrid}\label{sec:hybrid}
+\subsection{Exact tree moves, the lifted local move, and the reversible hybrid}\label{sec:hybrid}
 
 Corollary~\ref{cor:small-tau} says the local chain cannot be made
 mobile by tuning, so a global move is needed, and \S\ref{sec:qp-mh}
-says that move must be reversible for the same target. The tree move
-below is the standard construction of reversible
-recombination~\cite{cannon2022spanning,autry2023metropolized}, stated
-at the partition level and Metropolized to an arbitrary target. We
-include it because the paper needs a mobile exact kernel to pair with
-Chain E, and because its density is closed-form only under one
-specific choice that practice does not make.
+says that move must be reversible for the same target. This
+subsection gives two exact tree moves, the one we use and the one
+that explains Chain A, lifts Chain E to the state space of the first,
+and states the sampler. It ends with the fact that organizes the
+experiments: an exact tree move proposes from one fixed law, and pays
+for every target that differs from it.
 
-\textbf{One step.} Pick an adjacent pair $\{i,j\}$ uniformly from
-$\mathrm{bp}(P)$, draw a uniform spanning tree $T$ of
-$H = G[V_i \cup V_j]$ by Wilson's algorithm, and pick one edge of $T$
-uniformly among \emph{all} $|V_H| - 1$ tree edges. If the two
-components $A, B$ both lie in the window~\eqref{eq:balance-window},
-assign the labels $i, j$ to them by a fair coin and propose; otherwise
-reject. Every spanning tree of $H$ that yields $\{A, B\}$ on removal
-of one edge is a spanning tree of $G[A]$, a spanning tree of $G[B]$,
-and one crossing edge, so
+\subsubsection{The partition-level tree move (Chain T)}\label{sec:tree-partition}
+
+Pick an adjacent pair $\{i,j\}$ uniformly from $\mathrm{bp}(P)$, draw
+a uniform spanning tree $T$ of $H = G[V_i \cup V_j]$ by Wilson's
+algorithm, and pick one edge of $T$ uniformly among \emph{all}
+$|V_H| - 1$ tree edges. If the two components $A, B$ both lie in the
+window~\eqref{eq:balance-window}, assign the labels $i, j$ to them by
+a fair coin and propose; otherwise reject. Every spanning tree of $H$
+that yields $\{A, B\}$ on removal of one edge is a spanning tree of
+$G[A]$, a spanning tree of $G[B]$, and one crossing edge, so
 \[
   q(P \to P') \;=\;
   \frac{\tau(A)\,\tau(B)\,|\partial(A,B)|}
@@ -1216,71 +1233,217 @@ the move is accepted with probability
        {\tau(A)\,\tau(B)\,|\partial(A,B)|}\;
   \frac{|\mathrm{bp}(P)|}{|\mathrm{bp}(P')|}\Bigr),
 \]
-computable from four determinants and two edge counts. Two details
-carry the exactness. The fair coin makes the move a bijection on
-labeled plans; a deterministic labeling rule would leave some reverse
-moves with zero density. And the cut edge is drawn among all tree
-edges rather than among balanced ones. GerryChain's \texttt{recom}
-draws among balanced edges, which multiplies the density by a
-tree-dependent normalization that does not cancel, and that is
-precisely why Chain A is only approximately correct. The price of the
-closed form is acceptance. Most tree edges split a merged pair
+computable from four determinants and two edge counts. The fair coin
+makes the move a bijection on labeled plans. The cut edge is drawn
+among all tree edges rather than among balanced ones, and that is the
+point of this move for us. GerryChain's \texttt{recom} draws among
+balanced edges, which multiplies the density by a tree-dependent
+normalization that does not cancel at the partition level, and that
+is precisely why Chain A is only approximately correct. The price of
+the closed form is acceptance. Most tree edges split a merged pair
 unevenly, so the move accepts about $7\%$ of proposals on the
-exact-balance $5 \times 5$ fiber and under $2\%$ on Iowa at
-$\varepsilon = 0.05$, and it is usable only because a step costs tens
-of microseconds.
+exact-balance $5 \times 5$ fiber and about $1\%$ on Iowa at
+$\varepsilon = 0.05$. It is not what practice runs, and an earlier
+version of this work used it as the baseline for the hybrid; the
+numbers in \S\ref{sec:exp-hybrid} show why that was the wrong
+comparison.
 
-\textbf{The hybrid.} Take a local step of \S\ref{sec:qp-mh} with
-probability $p_{\mathrm{loc}}$ and a tree step otherwise. Both kernels
-are $\pi$-reversible, so the mixture is. The target may be
-kernel-weighted, $\pi_w(P) \propto \exp(-\lambda\, w(\partial P))$,
-at the cost of replacing $|\partial P|$ by $w(\partial P)$ in both
-acceptance ratios; the local move's Laplacian then uses the same
-kernel, so the proposal is matched to the target's geometry. Where the
-balance window is slack the local solve is the linear solve of
+\subsubsection{The forest move (Chain F)}\label{sec:forest}
+
+Recovering balanced-edge selection with an exact density means
+lifting the state to a spanning forest, as Metropolized forest
+recombination does~\cite{autry2023metropolized}. A labeled forest is
+$\mathcal{F} = (P, \{T_d\})$, where $T_d$ is a spanning tree of
+$G[V_d]$ for every district. The fiber over a plan $P$ has
+$\tau(P) = \prod_d \tau(V_d)$ forests, and the lifted target
+\begin{equation}\label{eq:lifted-target}
+  \tilde\pi(\mathcal{F}) \;=\; \frac{\pi(P(\mathcal{F}))}{\tau(P(\mathcal{F}))}
+\end{equation}
+has marginal $\pi$ on plans. Every statistic we report is a function
+of the plan, so traces are comparable with the partition-level
+chains.
+
+\textbf{One step.} Pick $\{i,j\}$ uniformly from $\mathrm{bp}(P)$ and
+draw a uniform spanning tree $T$ of $H$. Let $B(T)$ be the set of
+edges of $T$ whose removal leaves both components inside the
+window~\eqref{eq:balance-window}. If $B(T)$ is empty, draw again, up
+to $M$ times, then reject. Otherwise pick $e \in B(T)$ uniformly, let
+$\{A, B\}$ be the components, and assign the labels by a fair coin. A
+forest $\mathcal{F}' = (\ldots, T_A, T_B, \ldots)$ is reached from
+exactly those draws $(\hat T, \hat e)$ with $\hat T = T_A \cup T_B \cup f$
+for a crossing edge $f \in \partial(A,B)$ and $\hat e = f$, so
+\begin{equation}\label{eq:forest-q}
+  q(\mathcal{F} \to \mathcal{F}') \;=\;
+  \frac{c_H}{2\,|\mathrm{bp}(P)|\,\tau(H)}\; S(T_A, T_B),
+  \qquad
+  S(T_A, T_B) \;=\; \sum_{f \in \partial(A,B)} \frac{1}{|B(T_A \cup T_B \cup f)|},
+\end{equation}
+where $c_H = (1 - (1 - p_H)^M)/p_H$ accounts for the retry, $p_H$
+being the probability that a uniform spanning tree of $H$ has a
+balanced edge. The retry is exact because $p_H$ depends on $H$ and
+the window only, never on the endpoint, and the reverse move shares
+$H$, so $c_H$ and $\tau(H)$ cancel. (This is not true of the local
+move's rounding, whose feasibility event depends on the QP optimum at
+the endpoint; that is why Chain E must be single-shot.) The Hastings
+ratio is
+\begin{equation}\label{eq:forest-ratio}
+  \frac{\pi(P')}{\pi(P)}\;\cdot\;
+  \frac{\tau(V_i)\,\tau(V_j)}{\tau(A)\,\tau(B)}\;\cdot\;
+  \frac{S(T_i, T_j)}{S(T_A, T_B)}\;\cdot\;
+  \frac{|\mathrm{bp}(P)|}{|\mathrm{bp}(P')|},
+\end{equation}
+where the tree-count ratio is the lifted target's, not the
+proposal's. Each $S$ is a sum over the crossing edges of an $O(n)$
+subtree-population pass, and the two determinants of the current
+districts are cached, so a step costs two determinants plus
+$O(|\partial|\, n)$. Our implementation differs from Autry et al.\ in
+one convention: the adjacent pair is drawn uniformly from boundary
+pairs, as in every other move of this paper, rather than by a uniform
+cut edge; both are exact and the ratio carries the corresponding
+factor.
+
+\textbf{Two targets.} Besides $\pi_w(P) \propto e^{-\lambda\, w(\partial P)}$
+we also use its tree-weighted version
+$\pi_w^{\mathrm{tree}}(P) \propto \tau(P)\, e^{-\lambda\, w(\partial P)}$,
+the measure that \S\ref{sec:exp-5x5} identifies as close to what
+tempered ReCom samples. Under $\pi_w^{\mathrm{tree}}$ the tree-count
+ratio in \eqref{eq:forest-ratio} cancels against the same factor in
+$\pi(P')/\pi(P)$. Both targets are handled by the same code path; the
+local move's acceptance under the tree-weighted target acquires the
+tree-count ratio instead, since it changes the plan and hence
+$\tau(P)$.
+
+\subsubsection{The lifted local move and the hybrid (Chain H)}\label{sec:lifted-local}
+
+Run Chain E on the plan against the chosen target. If it accepts,
+redraw the trees of the two changed districts uniformly by Wilson's
+algorithm; otherwise keep the forest. With $K_E$ $\pi$-reversible on
+plans, the lifted kernel is
+$\tilde K(\mathcal{F}, \mathcal{F}') = K_E(P, P') / (\tau(A)\tau(B))$,
+and $\tilde\pi(\mathcal{F})\tilde K(\mathcal{F}, \mathcal{F}')$ is
+symmetric because $\tau(P) = \tau(V_i)\tau(V_j)$ times the other
+districts' counts, which the move does not change. Where the balance
+window is slack the local solve is the linear solve of
 Lemma~\ref{lem:row-stochastic}, which we use in place of the QP
 solver; both paths are deterministic functions of the state and pair,
 which is all Proposition~\ref{prop:qpmh-db} requires.
 
+The hybrid takes a lifted local step with probability
+$p_{\mathrm{loc}}$ and a forest step otherwise. Both kernels are
+$\tilde\pi$-reversible, so the mixture is, and its marginal on plans
+is $\pi$.
+
 \begin{proposition}[Ergodicity of the hybrid]\label{prop:ergodic}
-If the tree move is irreducible on $\Omega$ (which holds under the
-standard assumptions for recombination moves;
-see~\cite{deford2021recombination,cannon2024irreducibility}), then
-the mixture with the local move at any $p_{\mathrm{loc}} \in (0, 1)$
-is ergodic.
+If the forest move is irreducible on the lifted space (which holds
+under the standard assumptions for recombination moves;
+see~\cite{deford2021recombination,cannon2024irreducibility,autry2023metropolized}),
+then the mixture with the lifted local move at any
+$p_{\mathrm{loc}} \in (0, 1)$ is ergodic.
 \end{proposition}
 
 \begin{proof}
-Write $K = (1 - p_{\mathrm{loc}}) K_{\mathrm{T}} + p_{\mathrm{loc}}
-K_{\mathrm{E}}$. If $K_{\mathrm{T}}^{t}(P, P') > 0$ for some $t$,
-then $K^{t}(P, P') \ge (1 - p_{\mathrm{loc}})^{t}\,
-K_{\mathrm{T}}^{t}(P, P') > 0$, so irreducibility of the tree move
-implies irreducibility of the mixture. The tree move rejects with
-positive probability at every state (any unbalanced edge draw), so
-$K(P, P) > 0$ and the chain is aperiodic.
+Write $K = (1 - p_{\mathrm{loc}}) K_{\mathrm{F}} + p_{\mathrm{loc}}
+\tilde K_{\mathrm{E}}$. If $K_{\mathrm{F}}^{t}(\mathcal{F}, \mathcal{F}') > 0$
+for some $t$, then
+$K^{t}(\mathcal{F}, \mathcal{F}') \ge (1 - p_{\mathrm{loc}})^{t}\,
+K_{\mathrm{F}}^{t}(\mathcal{F}, \mathcal{F}') > 0$, so irreducibility
+of the forest move implies irreducibility of the mixture. The forest
+move rejects with positive probability at every state, so
+$K(\mathcal{F}, \mathcal{F}) > 0$ and the chain is aperiodic.
 \end{proof}
 
-\textbf{Verification.} On the 18 labeled states of the $2 \times 3$
-fiber we assembled the tree kernel, the local kernel with the
-linear-solve path, and their mixture analytically and checked
-$\pi(P)K(P,P') = \pi(P')K(P',P)$ entrywise. The maximum relative
-violation is $4.8 \times 10^{-16}$ for the tree move,
-$1.6 \times 10^{-15}$ for the local move, and $7.2 \times 10^{-16}$
-for the mixture, under both the uniform kernel at $\lambda = 0.1$ and
-a density kernel at $\lambda = 1$ (\texttt{hybrid.py}). The
-Matrix--Tree code returns $\tau(H) = 15$ for the $2 \times 3$ grid,
-the known value. \S\ref{sec:exp-hybrid} tests both kernels on the
-4\,006-state fiber.
+\textbf{Verification.} On the lifted $2 \times 3$ fiber (18 labeled
+plans, 30 forests) we assembled the forest kernel, the lifted local
+kernel with the linear-solve path, and their mixture analytically and
+checked $\tilde\pi(\mathcal{F})K(\mathcal{F},\mathcal{F}') =
+\tilde\pi(\mathcal{F}')K(\mathcal{F}',\mathcal{F})$ entrywise. The
+maximum relative violation is $2.4 \times 10^{-16}$ for the forest
+move, $1.4 \times 10^{-15}$ for the lifted local move, and
+$2.6 \times 10^{-16}$ for the mixture under the uniform kernel at
+$\lambda = 0.1$, and $4.1 \times 10^{-16}$, $1.1 \times 10^{-15}$ and
+$6.0 \times 10^{-16}$ under a density kernel at $\lambda = 1$, for
+both targets. The closed-form proposal mass
+\eqref{eq:forest-q} equals the mass obtained by enumerating every
+(tree, balanced edge, coin) draw to $1.8 \times 10^{-16}$
+(\texttt{forest\_recom.py}). The same check for the partition-level
+chains T, E and their mixture gives $4.8 \times 10^{-16}$,
+$1.6 \times 10^{-15}$ and $7.2 \times 10^{-16}$ (\texttt{hybrid.py}).
+\S\ref{sec:exp-hybrid} tests the forest move and the hybrid against
+enumerated targets on 4\,006 plans.
+
+\subsubsection{What an exact tree move pays}\label{sec:tree-pays}
+
+Both tree moves draw the proposed split from the same law, the
+spanning-tree measure on balanced bipartitions of $H$ conditioned on
+nothing else: Chain T from it exactly, Chain F from it up to the
+$S$ factor, which the experiments below show to be within a factor of
+two of one. Given the pair, the proposed split does not depend on the
+current one. On a merged pair the tree move is therefore an
+\emph{independence sampler}, and its acceptance at equilibrium is
+governed by how far the target's conditional on the pair sits from
+that law. Two terms of \eqref{eq:forest-ratio} carry the distance.
+Under $\pi_w$ the tree-count ratio does: a uniform spanning tree
+favors splits with many spanning trees, and by Procaccia and
+Tucker-Foltz~\cite{procaccia2022compact} the logarithm of a tree
+count scales with the boundary length, so at the equilibrium of a
+target that is less compact than the tree measure the ratio is
+typically far below one. Under $\pi_w^{\mathrm{tree}}$ that ratio
+cancels and the target ratio $e^{-\lambda \Delta w(\partial)}$
+carries the distance instead, which is large whenever the tempering
+makes the target more compact than an untempered tree split.
+
+We measured the terms on Iowa over 3\,000 forest proposals from a
+tree-partition start under $\pi_w$ (Table~\ref{tab:decomposition}).
+The tree-count term dominates, with mean logarithm $-6$ to $-10$ and
+a share of $67$ to $84$ percent of feasible proposals below $e^{-2.3}$
+on that term alone, while the target, $S$ and pair-count terms are
+mild. At the equilibrium of the uniform target the acceptance given a
+feasible tree is $0.17$; under the tree-weighted target at the same
+temperature it is $0.74$, because at $\lambda$ equivalent to $0.1$
+that target is close to the untempered tree measure. The scaling
+experiment of \S\ref{sec:exp-scaling} then shows what happens as the
+pair grows: for a compactness-tempered target, with or without tree
+weights, the mismatch grows in proportion to the boundary length and
+the acceptance decays exponentially in the grid side. The local move
+loses acceptance with pair size as well, because its expected move
+grows with the boundary (Corollary~\ref{cor:small-tau}), but it has a
+dial for it, the timestep; the tree move has none, since its proposal
+is the same law whatever the target.
+
+\begin{table}[htbp]
+\centering
+\footnotesize
+\begin{tabular}{lrrrrrrr}
+\toprule
+target & $\Pr[\text{balanced}]$ & acc.\ $\mid$ feas. &
+ \multicolumn{4}{c}{mean of each log term} & share, $\tau$-term $< e^{-2.3}$ \\
+\cmidrule(lr){4-7}
+ & & & target & tree count & $S$ & bp & \\
+\midrule
+uniform, $\lambda = 0.10$   & 0.41 & 0.25 & $+0.63$ & $-5.93$ & $+0.47$ & $-0.01$ & 0.67 \\
+perimeter, $\lambda = 0.34$ & 0.53 & 0.22 & $+0.65$ & $-5.98$ & $+0.59$ & $-0.00$ & 0.69 \\
+density, $\lambda = 0.72$   & 0.41 & 0.13 & $+1.62$ & $-9.78$ & $+0.74$ & $-0.06$ & 0.84 \\
+\bottomrule
+\end{tabular}
+\caption{The four terms of the forest move's log Hastings
+  ratio~\eqref{eq:forest-ratio} on Iowa ($k = 4$,
+  $\varepsilon = 0.05$) under $\pi_w$, averaged over the feasible
+  proposals of 3\,000 steps from a tree-partition start, without
+  retry. The tree-count ratio is the rejection; the retry raises
+  $\Pr[\text{tree balanced}]$ to $0.95$ at $2.5$ times the wall clock
+  and leaves accepted moves per second unchanged.}\label{tab:decomposition}
+\end{table}
 
 %════════════════════════════════════════════════════════════════════════════════
 \section{Experiments}\label{sec:experiments}
 %════════════════════════════════════════════════════════════════════════════════
 
-We evaluate the chains of Table~\ref{tab:five-chains} on the
+We evaluate the chains of Table~\ref{tab:chains} on the
 $5 \times 5$ grid (full enumeration, ground-truth target), the
-$2 \times 3$ grid (18 states, full convergence checkable), and the
-Iowa county dual graph (real geography, 99 counties, $k = 4$,
-$\varepsilon = 0.05$). All hyperparameters are locked in
+$2 \times 3$ grid (18 states, full convergence checkable), the Iowa
+county dual graph (real geography, 99 counties, $k = 4$,
+$\varepsilon = 0.05$), and $N \times N$ grids with $k = 2$ for the
+scaling experiment. All hyperparameters are locked in
 Appendix~\ref{app:hyperparams}; raw traces, per-step balance audits,
 and configuration stamps are released in the project repository.
 
@@ -1291,12 +1454,17 @@ the integrated autocorrelation time, computed by FFT, and are
 appropriate for inference about cut means only; distributional tests
 use batch means (\S\ref{sec:exp-2x3}), and distances to enumerated
 targets are read against parametric-bootstrap noise floors at the
-ESS (\S\ref{sec:exp-longrun}). Each chain runs on its own seeded RNG
-stream; the baseline tables report seed 42, and the ten-seed means of
-Chains V and A (seeds 42 through 51) are quoted where they enter the
-calibration. Between-seed standard deviations of the baselines are
-about $0.4$ cuts on Iowa and $0.1$ to $0.2$ cuts on the $5 \times 5$
-fiber, so single-seed means are representative.
+ESS (\S\ref{sec:exp-longrun}). When two chains are compared by
+effective samples per second we also report effective samples per
+step, which does not depend on the implementation, and we check that
+the two chains sit at the same level, by quarter means and by the
+difference of their post-burn means in standard errors from their
+own ESS. Each chain runs on its own seeded RNG stream; the baseline
+tables report seed 42, and the ten-seed means of Chains V and A
+(seeds 42 through 51) are quoted where they enter the calibration.
+Between-seed standard deviations of the baselines are about $0.4$
+cuts on Iowa and $0.1$ to $0.2$ cuts on the $5 \times 5$ fiber, so
+single-seed means are representative.
 
 \paragraph{Balance audit.}\label{sec:exp-balance} Every run of the
 baseline chains records, at every step, the maximum relative
@@ -1317,9 +1485,10 @@ validator pipeline.
 
 \subsection{Ground truth on the enumerated fiber: what the family samples}\label{sec:exp-5x5}
 
-The $5 \times 5$ partition fiber (the set of all valid plans; $k = 5$, exact balance, 4\,006
-partitions; Appendix~\ref{sec:fiber-corridors}) admits full enumeration, so
-every distributional quantity is exactly computable. The chains run
+The $5 \times 5$ partition fiber, the set of all valid plans at
+$k = 5$ and exact balance, has 4\,006 partitions and was enumerated
+exhaustively (the script is in the repository), so every
+distributional quantity is exactly computable. The chains run
 with $\varepsilon = 0.05$, which on 25 unit-population cells admits
 only districts of exactly five cells, so the state space the chains
 traverse is precisely this enumerated fiber. Uniform-on-fiber is not the target of any chain here; the
@@ -1328,7 +1497,8 @@ and with about 900 correlated draws over 4\,006 states even an
 independent uniform sampler would show TV above $0.78$. The
 informative comparisons are the cut means against the exact target
 mean and the long runs of \S\ref{sec:exp-longrun}, where distances
-are read against proper noise floors.
+are read against proper noise floors. Table~\ref{tab:5x5-headline}
+gives the short-run picture.
 
 \begin{table}[htbp]
 \centering
@@ -1390,7 +1560,8 @@ deviations. Second, the headline statistic is the cut-count marginal
 rather than the full state distribution. The fiber's cut counts take
 five values, so with $1.8 \times 10^5$ retained draws the marginal is
 estimated to three decimals and its floor is small, which removes the
-coverage problem entirely.
+coverage problem entirely. Table~\ref{tab:calibration-tv} and
+Figure~\ref{fig:calibration} give the result.
 
 \begin{table}[htbp]
 \centering
@@ -1500,213 +1671,374 @@ construction of \S\ref{sec:qp-mh}. The implemented kernel satisfies
 detailed balance exactly, and the chain it generates reaches its
 target.
 
-\subsection{The exact tree move and the hybrid against enumerated targets}\label{sec:exp-hybrid}
+\subsection{The forest move and the hybrid against enumerated targets}\label{sec:exp-hybrid}
 
-We run the tree move alone and the hybrid of \S\ref{sec:hybrid} from
-the same start for $2 \times 10^5$ steps on the $5 \times 5$ fiber
-against three enumerated targets, the uniform kernel at
-$\lambda = 0.1$ and at $\lambda = 1$, and a density kernel at
-$\lambda = 1$ built from a synthetic central city,
-$\rho(x,y) = 3\exp(-r^2/2)$ with $w_{uv} = \exp(-(\rho_u - \rho_v)^2)$,
-under which $\pi_w$ favors boundaries that follow the density
-gradient and the tree proposal is blind to the kernel. Each chain is
+We run the partition-level tree move (T), the forest move (F) and
+the hybrid (H, $p_{\mathrm{loc}} = 0.2$, $\tau = 0.1$) from the same
+start for $2 \times 10^5$ steps on the $5 \times 5$ fiber against
+three enumerated targets, the uniform kernel at $\lambda = 0.1$ and
+at $\lambda = 1$ and a density kernel at $\lambda = 1$ built from a
+synthetic central city, $\rho(x,y) = 3\exp(-r^2/2)$ with
+$w_{uv} = \exp(-(\rho_u - \rho_v)^2)$, under which $\pi_w$ favors
+boundaries that follow the density gradient and the tree proposal is
+blind to the kernel; and then the forest move and the hybrid against
+the tree-weighted versions of the same three targets. Each chain is
 tested as in \S\ref{sec:exp-longrun}, by the cut-count marginal
-against its noise floor and by batch-means Hotelling, and we report
-effective sample size per second of the weighted-cut trace. That
-ratio, hybrid to tree-only, is the criterion we fixed before running.
-At or above $1.5$ the local kernel earns its place, and below $1$ it
-is a passenger. The hybrid was run at the paper's locked timestep with
-$p_{\mathrm{loc}} = 0.5$, and at the mobility optimum of
-\S\ref{sec:mobility}, $\tau = 0.3$, with $p_{\mathrm{loc}} = 0.2$.
+against its noise floor and by batch-means Hotelling (with cut bins
+of negligible target mass merged, since under the sharp tree-weighted
+target the top bin has mass $3 \times 10^{-4}$), and we report
+effective samples per second. The pre-registered criterion for the
+local move is the ratio of the hybrid's effective samples per second
+to the forest move's: at or above $1.5$ the local move earns its
+place, below $1$ it is a passenger.
 
 \begin{table}[htbp]
 \centering
 \small
-\begin{tabular}{llrrrrrrrrr}
+\begin{tabular}{llrrrrrrr}
 \toprule
-Target & Chain & TV marg & floor & $z$ & Hotel.\ $p$ & acc tree & acc loc & ESS & ESS/s & ratio \\
+Target & Chain & TV marg & $z$ & Hotel.\ $p$ & acc global & acc local & ESS/s & ratio \\
 \midrule
-uniform, $\lambda{=}0.1$ & tree only & 0.010 & 0.039 & $-1.8$ & 0.58 & 0.066 & --- & 384 & 53.1 & --- \\
- & hybrid $\tau{=}0.1$, $p{=}0.5$ & 0.030 & 0.055 & $-1.2$ & 0.27 & 0.064 & 0.657 & 188 & 10.5 & 0.20 \\
- & hybrid $\tau{=}0.3$, $p{=}0.2$ & 0.028 & 0.039 & $-0.7$ & 0.51 & 0.065 & 0.407 & 367 & 31.7 & 0.63 \\
+\multicolumn{9}{l}{\emph{target} $\pi_w$} \\
+uniform, $\lambda{=}0.1$ & T & 0.010 & $-1.8$ & 0.58 & 0.066 & --- & 51.1 & \\
+ & F & 0.006 & $-1.2$ & 0.46 & 0.851 & --- & 211.8 & F/T $4.15$ \\
+ & H & 0.013 & $+0.2$ & 0.43 & 0.851 & 0.660 & 143.8 & H/F $0.68$ \\
+uniform, $\lambda{=}1$ & T & 0.028 & $-0.8$ & 0.21 & 0.074 & --- & 45.2 & \\
+ & F & 0.004 & $-1.3$ & 0.80 & 0.979 & --- & 338.6 & F/T $7.49$ \\
+ & H & 0.005 & $-1.3$ & 0.83 & 0.979 & 0.673 & 240.3 & H/F $0.71$ \\
+density, $\lambda{=}1$ & T & 0.028 & $-0.6$ & 0.60 & 0.069 & --- & 55.3 & \\
+ & F & 0.004 & $-1.5$ & 0.96 & 0.876 & --- & 254.5 & F/T $4.61$ \\
+ & H & 0.005 & $-1.5$ & 0.25 & 0.876 & 0.784 & 168.9 & H/F $0.66$ \\
 \midrule
-uniform, $\lambda{=}1$ & tree only & 0.028 & 0.040 & $-0.7$ & 0.21 & 0.074 & --- & 330 & 45.5 & --- \\
- & hybrid $\tau{=}0.1$, $p{=}0.5$ & 0.018 & 0.048 & $-1.6$ & 0.88 & 0.074 & 0.674 & 231 & 12.3 & 0.27 \\
- & hybrid $\tau{=}0.3$, $p{=}0.2$ & 0.013 & 0.033 & $-1.5$ & 0.73 & 0.073 & 0.413 & \textbf{534} & 46.4 & \textbf{1.07} \\
-\midrule
-density, $\lambda{=}1$ & tree only & 0.028 & 0.039 & $-0.7$ & 0.60 & 0.069 & --- & 418 & 55.9 & --- \\
- & hybrid $\tau{=}0.1$, $p{=}0.5$ & 0.040 & 0.064 & $-1.0$ & 0.50 & 0.067 & 0.785 & 136 & 6.4 & 0.11 \\
- & hybrid $\tau{=}0.3$, $p{=}0.2$ & 0.033 & 0.045 & $-0.7$ & 0.88 & 0.068 & 0.552 & 283 & 21.2 & 0.39 \\
+\multicolumn{9}{l}{\emph{target} $\pi_w^{\mathrm{tree}}$} \\
+uniform, $\lambda{=}0.1$ & F & 0.009 & $+0.2$ & 0.37 & 0.944 & --- & 257.3 & \\
+ & H & 0.006 & $-0.8$ & 0.78 & 0.942 & 0.675 & 188.8 & H/F $0.73$ \\
+uniform, $\lambda{=}1$ & F & 0.003 & $-1.0$ & 0.64 & 0.884 & --- & 265.9 & \\
+ & H & 0.005 & $-0.4$ & 0.41 & 0.886 & 0.683 & 182.3 & H/F $0.69$ \\
+density, $\lambda{=}1$ & F & 0.007 & $+0.1$ & 0.46 & 0.906 & --- & 259.3 & \\
+ & H & 0.003 & $-1.3$ & 0.70 & 0.906 & 0.789 & 168.6 & H/F $0.65$ \\
 \bottomrule
 \end{tabular}
-\caption{The exact tree move and the hybrid on the enumerated
+\caption{Exact tree moves and the hybrid on the enumerated
   $5 \times 5$ fiber, $2 \times 10^5$ steps each, seed 42. ``TV
   marg'' is total variation of the cut-count marginal to the
-  enumerated target with its noise floor at the effective sample
-  size and the excess $z$ in floor standard deviations; ``Hotel.\
-  $p$'' is the batch-means test of \S\ref{sec:exp-2x3}; ``acc'' are
-  acceptance rates by move type; ESS is of the weighted-cut trace and
-  ``ratio'' is ESS per second relative to the tree move alone, timed
-  in the same session, whose wall time in the $\tau = 0.3$ session
-  differs from the displayed tree-only row by a few
-  percent.}\label{tab:hybrid-5x5}
+  enumerated target and $z$ its excess over the noise floor at the
+  effective sample size; ``Hotel.\ $p$'' is the batch-means test of
+  \S\ref{sec:exp-2x3}; ESS is of the weighted-cut trace, timed in the
+  same session.}\label{tab:hybrid-5x5}
 \end{table}
 
-Three findings. First, every chain samples its target. All nine
-chains sit within $1.8$ floor standard deviations of the enumerated
-marginal with Hotelling $p$ between $0.21$ and $0.88$, under the
-uniform and the density kernel alike, so the exact tree move and the
-mixture are correct for kernel-weighted targets on 4\,006 states and
-not only on the 18 states of the analytic check. Second, at the
-paper's locked timestep the local move is a passenger. With
-$p_{\mathrm{loc}} = 0.5$ the hybrid's effective sample size per step
-is what its tree moves alone would give, and per second it is four to
-nine times worse, because a local step costs several tree steps and
-moves about $0.01$ units. Third, retuning the local move to the
-mobility optimum changes the per-step picture but not the verdict. At
-$\tau = 0.3$ and $p_{\mathrm{loc}} = 0.2$ the hybrid at the sharp
-uniform target reaches $534$ effective samples against $330$ for the
-tree move alone, with a fifth fewer tree moves, so the local move does
-contribute mixing once the target is concentrated. Per second that is
-parity, and at the mild and the density targets the ratio stays at
-$0.63$ and $0.39$. No configuration reaches $1.5$.
+Three findings. First, every chain samples its target. All fifteen
+rows sit within $1.8$ floor standard deviations of the enumerated
+marginal with Hotelling $p$ between $0.21$ and $0.96$, under both
+target families and both kernels, so the forest move, the lifted
+local move and their mixture are correct for kernel-weighted targets
+on 4\,006 states and not only on the 30 lifted states of the analytic
+check. Second, the forest move is a different baseline from the
+partition-level tree move: it accepts $0.85$ to $0.98$ against $0.07$,
+and delivers $4$ to $7.5$ times the effective samples per second on
+this fiber. Third, on this fiber the local move is a passenger under
+every target, with ratios $0.65$ to $0.73$. That is what
+\S\ref{sec:mobility} predicts under exact balance, where the local
+move's first-order channel is closed, and it is also what
+\S\ref{sec:tree-pays} predicts for pairs of ten cells, where the
+mismatch between any of these targets and the tree measure is small.
+The grid tells us the construction is right and tells us nothing yet
+about where the local move matters; Iowa and the scaling experiment
+do.
 
-\textbf{Iowa.} The same comparison on Iowa ($k = 4$,
-$\varepsilon = 0.05$), where there is no ground truth, measures
-mobility only. We use the paper's three kernels with $\lambda$ scaled
-so that $\lambda\,w(\partial P)$ at the initial plan equals the
-uniform case's $0.1\,|\partial P|$, and run $2 \times 10^5$ steps per
-chain at $p_{\mathrm{loc}} \in \{0.1, 0.3\}$ and both timesteps
-(Table~\ref{tab:hybrid-iowa}). Real geography reverses the grid's
-verdict, for the two reasons \S\ref{sec:mobility} gives. The
-tolerance makes single flips feasible, so the local move gains its
-first-order channel and moves $0.13$ to $0.17$ units per step at the
-locked timestep, at acceptance $0.2$ to $0.7$; and a uniform tree
-edge almost never splits fifty heterogeneous counties within five
-percent of balance, so the tree move accepts $0.6$ to $1.2$ percent
-of proposals. Under the density target the hybrid at the locked
-timestep reaches $2.9$ and $2.1$ times the tree move's effective
-samples per second, and the two halves of its trace agree while the
-tree move's do not, so within $2 \times 10^5$ steps the tree move
-alone has not reached equilibrium and the hybrid has. Under the
-perimeter target the short runs are too unstable to quote. The
-stored session gives ratios of $0.9$ and $4.4$, an earlier session
-that matched it for $21\,000$ steps before diverging through solver
-sensitivity (Appendix~\ref{app:reproducibility}) gave $1.6$ and
-$3.9$, and the tree move's effective sample size is $6$. Under the
-uniform target the evidence is marginal, $1.53$ at
-$p_{\mathrm{loc}} = 0.1$ and $0.38$ at $0.3$. Raising the timestep to
-$0.3$ does not transfer the grid's optimum. On Iowa the balance
-window binds more often as $\tau$ grows
-(Figure~\ref{fig:spectral-move-size}c), so more local solves fall
-back to the QP solver, acceptance drops, and the perimeter ratios
-sit at $1.07$ and $1.26$ while density holds at $2.8$ and $3.4$. The
-tree move's effective sample sizes in every short run are $6$ to
-$14$, so the short-run ratios are rough; the direction under the
-density target and the convergence contrast are not. Runs of
-$2 \times 10^6$ steps settle the rest. Under the perimeter and density targets its quarter means
-fluctuate around the hybrid's level, $27.6$ to $29.4$ against $27.9$
-and $16.4$ to $18.3$ against $18.2$, so the two chains share an
-equilibrium on real geography, which is the correctness check that
-no enumeration can give here. Its effective sample size is $28$ and
-$20$ over $1.8 \times 10^6$ retained steps, an autocorrelation time
-near $10^5$ steps and $0.07$ and $0.06$ effective samples per second,
-below the short-run estimates. A matched $2 \times 10^6$-step run of
-the hybrid at $p_{\mathrm{loc}} = 0.1$ gives $126$ and $186$
-effective samples, $0.23$ and $0.39$ per second, with quarter means
-on the same level as the tree move's. On equilibrium chains the
-hybrid's advantage is therefore a factor of $3.1$ under the
-perimeter target and $6.7$ under density, larger than the short runs
-suggested because those understated the tree move's autocorrelation
-more than the hybrid's. A second seed repeats the picture, with
-ratios of $3.7$ under the perimeter target and $4.7$ under density,
-the hybrid's quarter means within $0.4$ of each other, and the tree
-move's wandering by one to two units over the run.
+\subsection{The kill test on Iowa}\label{sec:exp-iowa}
+
+On Iowa ($k = 4$, $\varepsilon = 0.05$) there is no ground truth, so
+the comparison is mobility at equilibrium. We use the paper's three
+kernels with $\lambda$ scaled so that $\lambda\, w(\partial P)$ at the
+initial plan equals the uniform case's $0.1\,|\partial P|$, and run
+the forest move alone and the hybrid at $p_{\mathrm{loc}} \in \{0.1,
+0.3\}$, $\tau = 0.1$. The criterion was fixed before the long runs
+were started: under $\pi_w$, with $p_{\mathrm{loc}} = 0.1$, the hybrid
+passes if its effective samples per second are at least $1.5$ times
+the forest move's on both the perimeter and the density target on
+both seeds, with the two chains at the same level. The
+$p_{\mathrm{loc}} = 0.3$ runs were added after the short runs favored
+that setting and are reported as a secondary finding.
+
+\paragraph{Short runs, direction and timing.} Table~\ref{tab:iowa-short}
+gives $2 \times 10^5$ steps per chain. Under $\pi_w$ the forest move
+accepts $0.16$ to $0.17$, the partition-level tree move $0.006$ to
+$0.012$, and yet the two deliver similar effective samples per second,
+because a forest step costs six times more (every feasible draw pays
+the determinants and the crossing-edge sums) and the partition-level
+move pays them only on the one percent of draws that balance. The
+hybrid beats the forest move on every kernel, by $1.4$ to $1.8$ at
+$p_{\mathrm{loc}} = 0.1$ and $2.4$ to $4.4$ at $0.3$, but the forest
+move's effective sample size in these runs is $36$ to $56$, so these
+ratios carry roughly $40$ percent uncertainty. Under
+$\pi_w^{\mathrm{tree}}$ the picture inverts: the forest move accepts
+$0.66$ to $0.74$, its effective sample size is about $10\,000$ per
+$2 \times 10^5$ steps, two hundred times its value under $\pi_w$ at
+the same step count, and the hybrid is a passenger at $0.86$ to
+$0.93$.
 
 \begin{table}[htbp]
 \centering
 \small
-\begin{tabular}{llrrrrrrrr}
+\begin{tabular}{llrrrrrrr}
 \toprule
-Target & Chain & acc tree & acc loc & linear & $\bar w$ 1st half & $\bar w$ 2nd half & ESS & ESS/s & ratio \\
+Target & Chain & acc global & acc local & $\bar w$ 1st half & $\bar w$ 2nd half & ESS & ESS/s & ratio \\
 \midrule
-\multicolumn{10}{l}{\emph{locked timestep} $\tau = 0.1$} \\
-uniform, $\lambda{=}0.10$ & tree only & 0.012 & --- & --- & 83.2 & 87.2 & 14 & 0.38 & --- \\
- & hybrid $p{=}0.1$ & 0.005 & 0.265 & 0.58 & 89.3 & 86.8 & 37 & 0.59 & 1.53 \\
- & hybrid $p{=}0.3$ & 0.004 & 0.214 & 0.51 & 88.4 & 85.7 & 18 & 0.15 & 0.38 \\
-perimeter, $\lambda{=}0.34$ & tree only & 0.006 & --- & --- & 25.5 & 28.2 & 6 & 0.16 & --- \\
- & hybrid $p{=}0.1$ & 0.005 & 0.560 & 0.81 & 26.6 & 29.0 & 8 & 0.15 & 0.90 \\
- & hybrid $p{=}0.3$ & 0.005 & 0.532 & 0.80 & 28.1 & 27.7 & 67 & 0.72 & 4.44 \\
-density, $\lambda{=}0.72$ & tree only & 0.007 & --- & --- & 13.3 & 14.8 & 6 & 0.20 & --- \\
- & hybrid $p{=}0.1$ & 0.004 & 0.615 & 0.97 & 18.8 & 18.2 & 28 & 0.58 & \textbf{2.92} \\
- & hybrid $p{=}0.3$ & 0.004 & 0.676 & 0.98 & 18.9 & 18.1 & 28 & 0.43 & 2.14 \\
+\multicolumn{9}{l}{$\pi_w$} \\
+uniform, $\lambda{=}0.10$ & F & 0.163 & --- & 89.2 & 87.8 & 36 & 0.161 & --- \\
+ & H, $p{=}0.1$ & 0.158 & 0.249 & 90.1 & 89.4 & 56 & 0.223 & 1.39 \\
+ & H, $p{=}0.3$ & 0.165 & 0.254 & 89.8 & 89.3 & 180 & 0.714 & 4.44 \\
+ & T & 0.012 & --- & 83.2 & 87.2 & 14 & 0.395 & 2.46 \\
+perimeter, $\lambda{=}0.34$ & F & 0.163 & --- & 28.1 & 28.2 & 43 & 0.185 & --- \\
+ & H, $p{=}0.1$ & 0.163 & 0.530 & 28.7 & 28.2 & 79 & 0.339 & 1.83 \\
+ & H, $p{=}0.3$ & 0.158 & 0.526 & 28.0 & 28.4 & 116 & 0.450 & 2.44 \\
+ & T & 0.006 & --- & 25.5 & 28.2 & 6 & 0.153 & 0.83 \\
+density, $\lambda{=}0.72$ & F & 0.174 & --- & 18.3 & 17.9 & 56 & 0.243 & --- \\
+ & H, $p{=}0.1$ & 0.173 & 0.672 & 18.1 & 18.1 & 93 & 0.424 & 1.74 \\
+ & H, $p{=}0.3$ & 0.174 & 0.669 & 18.2 & 18.1 & 174 & 0.852 & 3.51 \\
+ & T & 0.007 & --- & 13.3 & 14.8 & 6 & 0.204 & 0.84 \\
 \midrule
-\multicolumn{10}{l}{\emph{grid mobility optimum} $\tau = 0.3$} \\
-uniform & hybrid $p{=}0.1$ & 0.003 & 0.097 & 0.38 & 90.7 & 90.4 & 39 & 0.57 & 1.50 \\
- & hybrid $p{=}0.3$ & 0.006 & 0.117 & 0.40 & 95.5 & 90.8 & 18 & 0.14 & 0.37 \\
-perimeter & hybrid $p{=}0.1$ & 0.007 & 0.249 & 0.52 & 27.7 & 29.1 & 12 & 0.17 & 1.07 \\
- & hybrid $p{=}0.3$ & 0.006 & 0.274 & 0.59 & 28.8 & 28.4 & 24 & 0.20 & 1.26 \\
-density & hybrid $p{=}0.1$ & 0.005 & 0.449 & 0.95 & 17.0 & 17.5 & 27 & 0.57 & 2.84 \\
- & hybrid $p{=}0.3$ & 0.005 & 0.396 & 0.95 & 17.6 & 18.2 & 47 & 0.69 & \textbf{3.44} \\
-\midrule
-\multicolumn{10}{l}{\emph{long runs,} $2 \times 10^6$ \emph{steps,} $\tau = 0.1$, \emph{seed 42}} \\
-perimeter & tree only & 0.003 & --- & --- & 28.2 & 28.5 & 28 & 0.073 & --- \\
- & hybrid $p{=}0.1$ & 0.005 & 0.539 & --- & 28.0 & 28.7 & 126 & 0.226 & \textbf{3.1} \\
-density & tree only & 0.005 & --- & --- & 17.3 & 17.4 & 20 & 0.059 & --- \\
- & hybrid $p{=}0.1$ & 0.005 & 0.672 & --- & 18.0 & 18.0 & 186 & 0.394 & \textbf{6.7} \\
-\multicolumn{10}{l}{\emph{long runs,} $2 \times 10^6$ \emph{steps,} $\tau = 0.1$, \emph{seed 43}} \\
-perimeter & tree only & 0.004 & --- & --- & 28.7 & 29.1 & 26 & 0.068 & --- \\
- & hybrid $p{=}0.1$ & 0.005 & 0.527 & --- & 28.4 & 28.3 & 147 & 0.253 & \textbf{3.7} \\
-density & tree only & 0.004 & --- & --- & 16.6 & 17.6 & 39 & 0.108 & --- \\
- & hybrid $p{=}0.1$ & 0.005 & 0.678 & --- & 18.2 & 18.2 & 243 & 0.507 & \textbf{4.7} \\
+\multicolumn{9}{l}{$\pi_w^{\mathrm{tree}}$} \\
+uniform, $\lambda{=}0.10$ & F & 0.741 & --- & 41.05 & 40.93 & 10\,035 & 60.6 & --- \\
+ & H, $p{=}0.1$ & 0.742 & 0.419 & 40.98 & 40.94 & 10\,677 & 56.4 & 0.93 \\
+ & H, $p{=}0.3$ & 0.744 & 0.422 & 41.05 & 40.90 & 8\,010 & 34.2 & 0.56 \\
+perimeter, $\lambda{=}0.34$ & F & 0.733 & --- & 13.04 & 13.04 & 10\,257 & 62.3 & --- \\
+ & H, $p{=}0.1$ & 0.732 & 0.714 & 13.04 & 13.03 & 9\,459 & 54.2 & 0.87 \\
+ & H, $p{=}0.3$ & 0.735 & 0.715 & 13.06 & 13.04 & 7\,686 & 40.2 & 0.64 \\
+density, $\lambda{=}0.72$ & F & 0.662 & --- & 7.30 & 7.31 & 9\,295 & 53.7 & --- \\
+ & H, $p{=}0.1$ & 0.662 & 0.831 & 7.34 & 7.27 & 8\,334 & 46.0 & 0.86 \\
+ & H, $p{=}0.3$ & 0.660 & 0.832 & 7.28 & 7.29 & 5\,927 & 34.7 & 0.65 \\
 \bottomrule
 \end{tabular}
-\caption{The exact tree move and the hybrid on Iowa ($k = 4$,
-  $\varepsilon = 0.05$), seed 42 except where marked,
-  $2 \times 10^5$ steps each except the last two blocks. ``linear''
-  is the fraction of local solves that the linear-solve
-  path of Lemma~\ref{lem:row-stochastic} handled without the QP
-  solver; the two $\bar w$ columns are the mean weighted cut over the
-  first and second halves of the retained trace, whose agreement is
-  the convergence check; ``ratio'' is effective samples per second
-  relative to the tree move alone at the same target, timed in the
-  same session, so the $\tau = 0.3$ ratios use that session's
-  tree-only wall time rather than the displayed
-  row's.}\label{tab:hybrid-iowa}
+\caption{Iowa short runs ($k = 4$, $\varepsilon = 0.05$,
+  $2 \times 10^5$ steps, seed 42, $\tau = 0.1$). The two $\bar w$
+  columns are the mean weighted cut over the halves of the retained
+  trace; ``ratio'' is effective samples per second relative to the
+  forest move at the same target, timed in the same session. The
+  partition-level tree move T is included under $\pi_w$ for the
+  baseline-against-baseline comparison; it has no tree-weighted
+  implementation.}\label{tab:iowa-short}
 \end{table}
 
-\textbf{Reading.} The two test beds answer the same question in
-opposite ways, and \S\ref{sec:mobility} says why. On an exact-balance
-grid the local move's leading-order draw is infeasible and its reach
-is capped, while the tree move splits ten cells evenly often enough
-to relocate whole districts for microseconds a step; there the local
-kernel is a passenger. On real geography with a five percent
-tolerance the local move's first-order channel opens and the tree
-move's acceptance collapses by an order of magnitude; there the local
-kernel is what lets the exact sampler reach equilibrium under
-geography-weighted targets in a run of practical length. The
-practical exact sampler for a kernel-weighted compactness target is
-therefore the mixture, with a small local fraction, run at or below
-the paper's locked timestep rather than at the grid's mobility
-optimum.
+\paragraph{Long runs, the verdict.} Table~\ref{tab:iowa-long} gives
+$2 \times 10^6$ steps under $\pi_w$ on two seeds, and $5 \times 10^5$
+steps under $\pi_w^{\mathrm{tree}}$, where the forest move's
+autocorrelation time is a hundred times shorter. Under $\pi_w$ the
+pre-registered criterion passes in all four cells: ratios $1.65$ and
+$2.29$ under the perimeter target, $1.95$ and $2.03$ under density,
+with the two chains' means within $1.5$ standard errors in every cell
+and quarter means on the same level. The forest move's effective
+sample sizes are $247$ to $585$, which puts roughly $25$ percent on
+each ratio, so the honest statement is ``$1.6$ to $2.3$, about two''.
+At $p_{\mathrm{loc}} = 0.1$ the two chains cost the same per step on
+this implementation, so the per-step ratios equal the per-second
+ones. At $p_{\mathrm{loc}} = 0.3$ the ratios are $2.3$ to $4.4$ and
+the per-step cost ratio is $0.9$ to $1.1$; one level check there is
+borderline ($z = 2.0$, density, seed 43). Under
+$\pi_w^{\mathrm{tree}}$ the local move is a passenger with ratios
+$0.81$ to $0.90$ at effective sample sizes of $20\,000$ to $27\,000$,
+so those ratios are tight; per step the hybrid is slightly worse than
+the forest move there, so a local step contributes less decorrelation
+than the forest step it displaces before any cost is counted.
+
+\begin{table}[htbp]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{llrrrrrrrr}
+\toprule
+Target & Seed & \multicolumn{2}{c}{ESS} & \multicolumn{2}{c}{ESS/s} & ratio & $z$ & \multicolumn{2}{c}{quarter means} \\
+\cmidrule(lr){3-4}\cmidrule(lr){5-6}\cmidrule(lr){9-10}
+ & & F & H & F & H & & & F & H \\
+\midrule
+\multicolumn{10}{l}{$\pi_w$, $2 \times 10^6$ steps, H at $p_{\mathrm{loc}} = 0.1$} \\
+perimeter & 42 & 421 & 696 & 0.123 & 0.202 & \textbf{1.65} & $+0.2$ & 28.2 27.8 28.0 28.4 & 28.2 28.0 28.3 28.1 \\
+perimeter & 43 & 247 & 572 & 0.072 & 0.165 & \textbf{2.29} & $+0.2$ & 28.6 28.2 28.7 27.9 & 28.3 28.6 28.5 28.2 \\
+density & 42 & 486 & 925 & 0.177 & 0.345 & \textbf{1.95} & $-0.3$ & 18.0 18.0 18.3 17.9 & 17.9 18.0 18.2 17.9 \\
+density & 43 & 585 & 1\,167 & 0.214 & 0.434 & \textbf{2.03} & $+1.5$ & 17.9 17.8 17.7 18.2 & 18.0 18.0 18.0 18.1 \\
+\multicolumn{10}{l}{$\pi_w$, $2 \times 10^6$ steps, H at $p_{\mathrm{loc}} = 0.3$} \\
+perimeter & 42 & 421 & 1\,116 & 0.123 & 0.324 & 2.65 & $-0.0$ & & 28.2 28.1 28.1 28.1 \\
+perimeter & 43 & 247 & 1\,101 & 0.072 & 0.318 & 4.43 & $-0.9$ & & 28.2 28.3 28.2 28.1 \\
+density & 42 & 486 & 1\,395 & 0.177 & 0.559 & 3.16 & $+0.8$ & & 18.1 18.2 18.1 18.1 \\
+density & 43 & 585 & 1\,244 & 0.214 & 0.497 & 2.33 & $+2.0$ & & 18.0 18.1 18.0 18.2 \\
+\multicolumn{10}{l}{$\pi_w^{\mathrm{tree}}$, $5 \times 10^5$ steps, H at $p_{\mathrm{loc}} = 0.1$} \\
+perimeter & 42 & 27\,019 & 24\,558 & 43.9 & 37.4 & 0.85 & $-0.6$ & 13.05 13.05 13.05 13.02 & 13.03 13.04 13.02 13.05 \\
+perimeter & 43 & 27\,113 & 23\,604 & 44.1 & 35.8 & 0.81 & $+0.3$ & 13.01 13.02 13.05 13.07 & 13.03 13.04 13.02 13.07 \\
+density & 42 & 21\,642 & 19\,615 & 32.3 & 29.1 & 0.90 & $-1.1$ & 7.30 7.30 7.29 7.32 & 7.31 7.28 7.27 7.29 \\
+density & 43 & 22\,750 & 19\,647 & 33.9 & 29.2 & 0.86 & $-1.0$ & 7.30 7.30 7.27 7.30 & 7.27 7.29 7.28 7.29 \\
+\bottomrule
+\end{tabular}
+\caption{The Iowa kill test, long runs ($k = 4$,
+  $\varepsilon = 0.05$, $\tau = 0.1$, $10\%$ burn-in). $z$ is the
+  difference of the two chains' post-burn means in standard errors
+  computed from their own effective sample sizes. Acceptance rates:
+  forest $0.16$ (perimeter) and $0.18$ (density) under $\pi_w$,
+  $0.73$ and $0.66$ under $\pi_w^{\mathrm{tree}}$; local $0.53$ and
+  $0.67$ under $\pi_w$, $0.72$ and $0.84$ under
+  $\pi_w^{\mathrm{tree}}$. All ten $\pi_w$ chains ran concurrently on
+  one machine; cost-corrected ratios (effective samples per step
+  times the single-process cost ratio of Table~\ref{tab:iowa-short})
+  are $1.63$, $2.29$, $1.99$ and $2.08$ at
+  $p_{\mathrm{loc}} = 0.1$.}\label{tab:iowa-long}
+\end{table}
+
+\textbf{Reading.} Against the exact global move that practice runs,
+the diffusion move roughly doubles effective samples per second for
+geography-weighted compactness targets on Iowa and adds nothing on
+the tree-weighted tempered measure at the same temperature.
+\S\ref{sec:tree-pays} says why: at $\lambda$ equivalent to $0.1$ the
+tree-weighted target is close to the untempered tree measure the
+forest move proposes from, so there is nothing for a local move to
+add, while $\pi_w$ is far from it through the tree-count term. The
+next subsection shows that the second case is the general one.
+
+\subsection{The scaling experiment}\label{sec:exp-scaling}
+
+We run the forest move alone and the hybrid at $p_{\mathrm{loc}} = 0.3$
+on $N \times N$ grids with $k = 2$, so the merged pair is the whole
+graph and there is no pair-selection noise, unit populations,
+tolerance $0.10$ (fixed in relative terms, so single flips are
+feasible at every $N$), uniform kernel, for $N \in \{6, 8, 10, 12,
+16, 20\}$ and four targets: $\pi_w$ at $\lambda = 1$ and $2$ and
+$\pi_w^{\mathrm{tree}}$ at $\lambda = 0.1$ and $1$. Each chain runs
+$5 \times 10^4$ steps, doubled for $N \ge 16$, from a vertical-split
+start. The forest move's acceptance and the two terms of its Hastings
+ratio are read from the hybrid's trace, where every forest proposal is
+made from a target-distributed state even at sizes where the forest
+move alone does not equilibrate within the budget.
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\textwidth]{fig/forest_scaling.pdf}
+  \caption{The exact tree move against grid side, $k = 2$,
+    tolerance $0.1$, uniform kernel, hybrid at
+    $p_{\mathrm{loc}} = 0.3$ and $\tau = 0.1$. (a)~Forest-move
+    acceptance at equilibrium. (b)~Minus the mean of the target and
+    tree-count log terms of \eqref{eq:forest-ratio} per feasible
+    proposal, the per-proposal mismatch with the untempered tree
+    measure. (c)~Effective samples per second of the hybrid over the
+    forest move alone; the $N = 20$ points of the two tempered
+    targets are not at equilibrium (see text).}
+  \label{fig:scaling}
+\end{figure}
+
+\begin{table}[htbp]
+\centering
+\small
+\begin{tabular}{lrrrrrr}
+\toprule
+ & $N = 6$ & 8 & 10 & 12 & 16 & 20 \\
+\midrule
+\multicolumn{7}{l}{\emph{forest-move acceptance at equilibrium}} \\
+$\pi_w$, $\lambda{=}1$ & 0.79 & 0.73 & 0.69 & 0.66 & 0.62 & 0.58 \\
+$\pi_w^{\mathrm{tree}}$, $\lambda{=}0.1$ & 0.78 & 0.73 & 0.69 & 0.64 & 0.57 & 0.50 \\
+$\pi_w$, $\lambda{=}2$ & 0.30 & 0.19 & 0.12 & 0.067 & 0.021 & 0.009 \\
+$\pi_w^{\mathrm{tree}}$, $\lambda{=}1$ & 0.22 & 0.15 & 0.085 & 0.059 & 0.018 & 0.007 \\
+\multicolumn{7}{l}{\emph{mean cut length under the target}} \\
+$\pi_w$, $\lambda{=}2$ & 7.2 & 10.0 & 12.6 & 15.1 & 19.8 & 25.1 \\
+$\pi_w^{\mathrm{tree}}$, $\lambda{=}1$ & 6.9 & 9.7 & 12.1 & 15.0 & 20.0 & 25.1 \\
+\multicolumn{7}{l}{\emph{per-proposal mismatch, $-\E[\log(\text{target ratio}) + \log(\text{tree-count ratio})]$}} \\
+$\pi_w$, $\lambda{=}2$ & 1.9 & 3.2 & 5.0 & 7.2 & 12.4 & 17.9 \\
+$\pi_w^{\mathrm{tree}}$, $\lambda{=}1$ & 2.7 & 4.2 & 6.2 & 8.1 & 13.2 & 18.8 \\
+$\pi_w$, $\lambda{=}1$ & 0.2 & 0.3 & 0.3 & 0.4 & 0.5 & 0.6 \\
+\multicolumn{7}{l}{\emph{local-move acceptance, $\tau = 0.1$ / $\tau = 0.03$}} \\
+$\pi_w$, $\lambda{=}2$ & 0.39 / 0.74 & 0.32 / 0.69 & 0.25 / 0.63 & 0.19 / 0.59 & 0.12 / 0.49 & 0.08 / 0.42 \\
+\multicolumn{7}{l}{\emph{ESS/s hybrid over forest, $\tau = 0.03$ (per step in parentheses)}} \\
+$\pi_w$, $\lambda{=}2$ & 0.83 (0.78) & 1.03 (0.94) & 1.05 (0.91) & 1.86 (1.60) & 1.72 (1.46) & $[3.78]$ \\
+$\pi_w^{\mathrm{tree}}$, $\lambda{=}1$ & 0.79 (0.76) & 0.89 (0.80) & 1.20 (1.03) & 1.53 (1.31) & 2.44 (2.11) & $[1.32]$ \\
+\bottomrule
+\end{tabular}
+\caption{The scaling experiment. Acceptance, cut length and mismatch
+  are from the hybrid's trace at $\tau = 0.1$; the local-move
+  acceptance and the ratios are from the $\tau = 0.03$ rerun of the
+  two tempered targets, which the move-size law calls for once the
+  boundary grows. Bracketed ratios are at $N = 20$, where the forest
+  move's effective sample size is $62$ and $77$ and the two chains'
+  means differ by more than two standard errors, so neither chain is
+  at equilibrium within the budget and the ratio is not a
+  number.}\label{tab:scaling}
+\end{table}
+
+Three findings. First, the exact tree move freezes as the pair grows,
+and the two tempered targets freeze it at the same rate. Under $\pi_w$
+at $\lambda = 2$ and under $\pi_w^{\mathrm{tree}}$ at $\lambda = 1$
+the forest move's acceptance falls on a straight line in log scale,
+about $e^{-0.24 N}$, from $0.30$ and $0.22$ at $N = 6$ to $0.009$ and
+$0.007$ at $N = 20$, while the per-proposal mismatch grows from about
+$2$ to $19$ in proportion to the mean cut length ($7$ to $25$). The
+two curves lie on top of each other in both panels of
+Figure~\ref{fig:scaling}, although the tree-count term is present in
+one Hastings ratio and absent from the other. What the move pays for
+is the distance of the target from the untempered tree measure, not
+the tree-count term as such. Under the two targets near that measure
+the acceptance drifts from $0.8$ to $0.5$ over the same range and the
+mismatch stays below one.
+
+Second, the local move loses acceptance with pair size too, and has a
+dial for it. At $\tau = 0.1$ its acceptance falls from $0.39$ to
+$0.08$ between $N = 6$ and $20$, because its expected move
+$2\tau|\partial_w|$ grows with the boundary and multi-unit draws are
+more often infeasible. At $\tau = 0.03$ it is $0.74$ to $0.42$ over
+the same range. The tree move has no such dial: its proposal is the
+same law at every temperature and every kernel, so its acceptance is
+set by the mismatch, which grows with the boundary.
+
+Third, the local move's contribution grows with pair size where the
+tree move pays. At $\tau = 0.03$ the hybrid's effective samples per
+second relative to the forest move rise from below one at $N \le 10$
+to $1.5$ to $2.4$ at $N = 12$ and $16$ for both tempered targets, with
+the chains at the same level and the per-step ratios within $15$
+percent of the per-second ones. At $N = 20$ neither chain reaches
+equilibrium in $10^5$ steps under a tempered target, so that size is
+beyond the budget of either chain and we do not quote a ratio. Under
+the two near-proposal targets the ratio stays below one at every
+size, as on Iowa under the tree-weighted target.
+
+\textbf{What this establishes.} An exact tree move serves one family
+of targets well, the mildly tempered tree measure, which is what
+recombination samples anyway. For compactness targets away from it,
+in either direction, its acceptance decays exponentially in the pair
+size, and the diffusion move, whose ratio involves a one-unit boundary
+change and whose reach is set by a timestep rather than by the
+target, is the component that keeps an exact sampler moving. The Iowa
+result of \S\ref{sec:exp-iowa} is one point on these curves, at a
+pair size of about fifty units and a mismatch of about six.
 
 \subsection{Iowa: the symmetric-\texorpdfstring{$q$}{q} filter against the exact sampler}\label{sec:exp-iowa-calib}
 
 On Iowa there is no enumeration, but the exact chains of
-\S\ref{sec:hybrid} estimate the nominal target directly. Under the
-uniform kernel at $\lambda = 0.1$ the four hybrid runs of
-Table~\ref{tab:hybrid-iowa} put the target's mean cut count near
-$90$, with half-run means between $86$ and $95$. Tempered ReCom with
-the symmetric-$q$ filter, run for 500 steps from the same kind of
-tree-partition start (seed 42, burn-in 100, per-step balance audit
-passed), sits at $39.8 \pm 4.3$ cuts, and Vanilla ReCom at
-$41.4 \pm 4.8$; Chain E alone, climbing from the same start, averages
-$55$ cuts over steps 100 to 500 and ends the run at $69$, still
-rising. On real geography the
-chain practitioners run as ``targeting $\pi$'' therefore samples
-plans with less than half the boundary length that $\pi$ itself has.
-The $5 \times 5$ calibration showed the effect at the level of
-distributions; Iowa shows its size.
+\S\ref{sec:hybrid} estimate both targets directly, and the forest
+move reaches the equilibrium of $\pi_w$ within about a thousand steps
+where the partition-level tree move needed about $10^5$. Under the
+uniform kernel at $\lambda = 0.1$ the forest move and the hybrid put
+the nominal target's mean cut count at $88$ to $90$ (half-run means
+$87.8$ to $90.1$ in Table~\ref{tab:iowa-short}) and the tree-weighted
+tempered measure's at $41.0$ (half-run means $41.05$ and $40.93$).
+Tempered ReCom with the symmetric-$q$ filter, run for 500 steps from
+the same kind of tree-partition start (seed 42, burn-in 100, per-step
+balance audit passed), sits at $39.8 \pm 4.3$ cuts, and Vanilla ReCom
+at $41.4 \pm 4.8$; Chain E alone, climbing from the same start,
+averages $55$ cuts over steps 100 to 500 and ends the run at $69$,
+still rising. On real geography the chain practitioners run as
+``targeting $\pi$'' therefore samples plans with less than half the
+boundary length that $\pi$ itself has, and sits within one cut of the
+tree-weighted tempered measure, with an exact sampler on each side of
+the comparison. The $5 \times 5$ calibration showed the effect at the
+level of distributions; Iowa shows its size.
+
+\subsection{Precinct scale}\label{sec:exp-precinct}
+
+\todo{To be written. North Carolina precinct dual graph (2\,692 units,
+$k = 4$, $\varepsilon = 0.05$), perimeter and density targets, forest
+move alone and hybrid at $p_{\mathrm{loc}} = 0.1$ with $\tau$ set by
+the move-size rule, $2 \times 10^5$ steps, two seeds; a timing probe
+first. Report forest acceptance, the two Hastings terms, quarter means,
+ESS per step and per second, and the ratio. Expected from
+\S\ref{sec:exp-scaling}: forest acceptance well below $10^{-2}$ under
+the tempered targets at pairs of about 1\,300 units, hybrid reaching
+equilibrium where the forest move alone does not.}
 
 %════════════════════════════════════════════════════════════════════════════════
 \section{Discussion}\label{sec:discussion}
@@ -1716,46 +2048,48 @@ distributions; Iowa shows its size.
 
 \textbf{Chain E} is provably exact for its target and, alone, too
 immobile to be a sampler; its value is as the local component of the
-hybrid, and \S\ref{sec:exp-hybrid} shows that value is nil on an
-exact-balance grid and decisive on Iowa under weighted targets.
-\textbf{The exact tree move} is the mobile component, exact for any
-kernel-weighted target once Metropolized to it; its cost is
-acceptance. \textbf{The
-hybrid} is the practical sampler, with a small local fraction and a
-timestep at or below the locked one. \textbf{Chains A and V} are what
-practitioners run, and \S\ref{sec:exp-longrun} and
-\S\ref{sec:exp-iowa-calib} measure how far their output sits from
-the tempered target.
+hybrid. \textbf{The forest move} is the mobile exact component and
+the baseline that practice runs; on its own measure, the mildly
+tempered spanning-tree distribution, it is hard to improve on, and
+away from it its acceptance decays with the pair size. \textbf{The
+hybrid} is the practical exact sampler for kernel-weighted
+compactness targets, with a small local fraction on real geography,
+and a timestep set by the move-size law rather than fixed.
+\textbf{The partition-level tree move} is kept as the move whose
+closed form explains why Chain A is only approximate.
+\textbf{Chains A and V} are what practitioners run, and
+\S\ref{sec:exp-longrun} and \S\ref{sec:exp-iowa-calib} measure how
+far their output sits from the tempered target and how close to the
+tree-weighted one.
 
 Why does the fidelity term matter? Without it the local move is a
 fresh spectral re-split that discards the structure the chain has
 found; with it the move is anchored and its size is governed by
-Corollary~\ref{cor:small-tau}. The companion paper shows on Iowa that
-only the anchored integer form of the energy improves compactness
-over its chain family, while an unanchored spectral variant matches
-plain ReCom. The community step-trace diagnostic
-(Appendix~\ref{sec:fiber-corridors}) makes a complementary point
-about locality in general. Pure tree-move chains cross community
-boundaries at 13--15\% per step, near the community-blind baseline,
-while optimization-guided local mixtures drop to 5--11\%, which is
-the division of labor the hybrid formalizes.
+Corollary~\ref{cor:small-tau}.
 
-\subsection{On the macro-structure findings}\label{sec:disc-throats}
+\subsection{Cost, and what a compiled implementation would change}\label{sec:disc-cost}
 
-The corrected picture of Appendix~\ref{sec:fiber-corridors} has two
-consequences. First, it relocates the blame for slow local mixing. If
-plan space were islands joined by narrow corridors, slow traversal
-would be a topological inevitability; since the fibers are well
-connected, it is a property of the dynamics, and \S\ref{sec:mobility}
-identifies that property for Chain E as the feasibility of its draws,
-not the graph. Second, worst-case hardness
-results~\cite{akitaya2022reconfiguration,charikar2023complexity}
-permit bottlenecked instances and Gold~\cite{gold2026adversarial}
-exhibits planar-grid configurations that trap recombination for
-exponentially many expected steps, so our grids may simply be too
-small or too symmetric to show such structure; the statistics of
-Table~\ref{tab:communities} give the template for checking a fiber
-that does.
+All chains here are Python. On Iowa under $\pi_w$ a forest step costs
+about $1.1$\,ms (a Wilson draw, the balanced-edge scan, two
+determinants and the crossing-edge sums, with the retry multiplying
+the first), the partition-level tree move $0.18$\,ms, and a local step
+about $1.5$\,ms, half of which is solver overhead on the pairs where
+the balance window binds. A compiled forest step would be an order of
+magnitude cheaper; the local step would gain less, since the solver
+overhead is language independent. The per-second ratios of
+\S\ref{sec:exp-iowa} would therefore move against the hybrid in Julia
+or Rust, which is why every comparison also reports effective samples
+per step. At $p_{\mathrm{loc}} = 0.1$ the per-step and per-second
+ratios coincide on this implementation, so the headline result does
+not depend on the language. Two improvements are within reach and
+belong to the journal version: a closed-form solve for the local move
+when the balance constraint is active (the unconstrained solve
+shifted by a multiple of the population vector, one extra linear
+solve and a scalar root), which removes the solver from the local
+step entirely, and a per-pair timestep
+$\tau = m / (2|\partial_w|)$ from Corollary~\ref{cor:small-tau} that
+holds the expected move at $m$ units whatever the pair, the principled
+form of the $\tau = 0.03$ rerun in \S\ref{sec:exp-scaling}.
 
 \subsection{Limitations}\label{sec:disc-limits}
 
@@ -1764,55 +2098,57 @@ redistricting chain used in practice, we lack a polynomial
 mixing-time guarantee (the polynomial-time grid sampler
 of~\cite{cannon2024sampling} is not a local chain), and Chain E
 demonstrates that even an exactly reversible chain can be an
-extremely slow mixer. We rely on empirical
-diagnostics, namely ESS, the community step-trace diagnostic, and enumerated
-ground truth.
+extremely slow mixer. The scaling result is empirical, a straight
+line over six grid sizes, with the independence-sampler argument of
+\S\ref{sec:tree-pays} as its explanation and not its proof.
 
 \textbf{(L2) Chain A's symmetric-$q$ approximation is not a small
 bias.} On the enumerated fiber the tempered chain's empirical mean
 ($16.73$) sits $1.8$ cuts below the exact target mean ($18.56$), its
 cut distribution is 220 noise-floor standard deviations from that
-target (\S\ref{sec:exp-longrun}), and
-Chain E's Iowa trajectory suggests the gap is larger, not smaller, on
-real graphs. \S\ref{sec:hybrid} corrects it with the
-spanning-tree-count ratio, at the price of acceptance.
+target (\S\ref{sec:exp-longrun}), and on Iowa the gap is a factor of
+two in cut length (\S\ref{sec:exp-iowa-calib}).
 
 \textbf{(L3) Chain E mixes too slowly to use alone.} Exactness comes
 from single-shot rounding, whose reach Corollary~\ref{cor:small-tau}
-bounds and whose feasibility \S\ref{sec:mobility} measures; the chain
-visited 6 of 4\,006 fiber states in 1\,000 steps at the locked
-timestep, which \S\ref{sec:mobility} shows sits well below the
-mobility optimum. Alone it is not a sampler; in the hybrid of
-\S\ref{sec:hybrid} it is a component whose value depends on the
-geography, nil on an exact-balance grid and decisive on Iowa under
-weighted targets.
+bounds and whose feasibility \S\ref{sec:mobility} measures. Alone it
+is not a sampler; in the hybrid it is a component whose value depends
+on how far the target sits from the tree measure.
 
-\textbf{(L4) Several runs are single-seed.} The baseline tables and
-the hybrid runs report seed 42; the calibration quotes ten-seed means
-of Chains V and A, the hybrid's long-run Iowa ratios rest on two
-seeds, and its short-run ratios on one.
+\textbf{(L4) The Iowa ratios carry about $25$ percent uncertainty and
+rest on two seeds.} The forest move's effective sample size under
+$\pi_w$ is in the hundreds at $2 \times 10^6$ steps. The direction,
+the level agreement and the control are solid; the second decimal of
+the ratio is not.
+
+\textbf{(L5) Scale.} The largest real graph is 99 counties.
+\S\ref{sec:exp-precinct} is to supply the precinct-scale run; until
+then the scaling experiment on grids is the evidence that the effect
+grows with pair size.
 
 \subsection{Future directions}\label{sec:disc-future}
 
 \begin{enumerate}
-  \item \textbf{A more mobile exact tree move.} The hybrid of
-    \S\ref{sec:hybrid} is exact, but its tree component accepts under
-    two percent of proposals on real geography because it draws the
-    cut edge among all tree edges. Recovering GerryChain's
-    balanced-edge selection without losing the closed form means
-    lifting the state to a forest, as Metropolized forest
-    recombination does~\cite{autry2023metropolized}; combining that
-    lift with the matched local kernel is the direct next step, and
-    the criterion of \S\ref{sec:exp-hybrid} is the test to apply to
-    it. The second step is precinct scale, where the determinants are
-    larger but still cheap, and where the downstream question,
-    whether the choice of kernel changes an ensemble's partisan
-    statistics, can be asked on real elections.
+  \item The precinct-scale run of \S\ref{sec:exp-precinct}, and the
+    downstream question it allows: whether the choice of kernel
+    changes an ensemble's partisan statistics on real elections.
+  \item The integer form of the energy, the same objective over
+    $x \in \{0,1\}^{|V_H|}$ solved as a convex mixed-integer program
+    inside a tempered chain, is an anchored refinement tool rather
+    than a sampler. In an earlier version of this work we evaluated
+    it as an optimizer on Iowa: it reduced mean cut edges by $20$
+    percent over tempered ReCom, and simulated annealing over ReCom
+    proposals reached the same best plans at a fraction of the cost.
+    We record the result so that it need not be rediscovered, and do
+    not pursue it.
+  \item An informed marked-edge selection for the marked edge
+    walk~\cite{mcwhorter2025marked}, with a Boltzmann draw over
+    marked sets whose density is computable, would be the lifted-space
+    analogue of Chain E; the same single-shot principle applies.
   \item Integration with the cycle walk~\cite{deford2025cycle} or the
     balanced up-down walk~\cite{akitaya2026bud} as the global
-    component in place of the tree move.
-  \item Multi-scale diffusion kernels (heat kernel, commute-time
-    kernel) in the local move.
+    component in place of the forest move, and multi-scale diffusion
+    kernels in the local move.
 \end{enumerate}
 
 %════════════════════════════════════════════════════════════════════════════════
@@ -1826,29 +2162,35 @@ balance, and showed that the diffusion view is more than an
 interpretation. The proposal is a single linear solve whenever
 balance is slack, its expected move size is an explicit filter norm
 with a small-timestep law and a hard ceiling, and its mobility is
-governed by feasibility rather than by the Metropolis ratio, with an
-interior optimum in the timestep that the locked setting missed by a
-factor of about four. Corrected by an exact Metropolis--Hastings
-step, the proposal gives Chain E, to our knowledge the first
-optimization-based proposal in redistricting MCMC with a
-detailed-balance argument, and on an 18-state fiber a million-step
-run's occupancy distribution is not distinguishable from the exact
-target. Paired with an exact tree move it gives a reversible sampler
-for kernel-weighted compactness targets, validated on 4\,006
-enumerated states, in which the local kernel is a passenger on an
-exact-balance grid and the component that reaches equilibrium on
-Iowa under perimeter and density targets. On the enumerated $5 \times 5$ fiber we showed at the level
-of distributions that tempered ReCom does not sample its nominal
-target and sits close to the spanning-tree-weighted measure, while
-Chain E samples what it states. The same energy solved as an integer program is an anchored
-refinement tool whose evaluation as an optimizer is the subject of a
-companion paper. Per-step balance and ESS audits discipline the
-empirical claims, including our own.
+governed by feasibility rather than by the Metropolis ratio.
+Corrected by an exact Metropolis--Hastings step, the proposal gives
+Chain E, to our knowledge the first optimization-based proposal in
+redistricting MCMC with a detailed-balance argument, and on an
+18-state fiber a million-step run's occupancy distribution is not
+distinguishable from the exact target. Lifted to the spanning-forest
+state space and mixed with the forest-lifted recombination move
+Metropolized to the same target, it gives a reversible sampler for
+kernel-weighted compactness targets, validated on 4\,006 enumerated
+plans, that on Iowa roughly doubles the effective samples per second
+of the forest move under perimeter and density targets and adds
+nothing on the tree-weighted tempered measure. The reason is
+structural and measured: an exact tree move proposes from the
+untempered spanning-tree measure whatever the target, its acceptance
+decays exponentially in the pair size under any compactness-tempered
+target, and the local move has a dial for the same effect where the
+tree move has none. On the enumerated $5 \times 5$ fiber we showed at
+the level of distributions that tempered ReCom does not sample its
+nominal target and sits close to the spanning-tree-weighted measure,
+and on Iowa that the gap is a factor of two in boundary length.
 
-For the field, we hope two ideas outlast the specific chains. Kernel
+For the field, we hope three ideas outlast the specific chains. Kernel
 choice can be a first-class modeling decision inside the proposal and
 the target rather than a post-hoc filter, provided the induced
-distribution is corrected. And enumerated fibers are cheap, severe
+distribution is corrected. The spanning-tree measure is the one
+target a tree move samples for free, and every other target costs it
+an acceptance that shrinks with the units in a pair, so a sampler for
+compactness targets at precinct scale needs a move whose reach does
+not depend on the target. And enumerated fibers are cheap, severe
 test beds; a chain's distance from its own computable target on
 4\,006 states, read against a noise floor, is a more informative
 diagnostic than any p-value on a single trace.
@@ -1882,301 +2224,134 @@ release with a persistent identifier will be deposited on acceptance.
   \item Initial partition from
     \texttt{gerrychain.tree.recursive\_tree\_part}, redrawn until all
     $k$ districts satisfy the global tolerance
-    (\texttt{balanced\_tree\_part}).
-  \item Step count: $5 \times 5$: $N = 1\,000$, burn-in $B = 100$;
-    Iowa: $N = 500$, $B = 100$; long-run validation
-    (\S\ref{sec:exp-longrun}): $2 \times 10^5$ (A) and
-    $10^5$ (E) steps; hybrid and tree-move runs
-    (\S\ref{sec:exp-hybrid}): $2 \times 10^5$, and $2 \times 10^6$
-    for the matched Iowa runs.
+    (\texttt{balanced\_tree\_part}); vertical split for the $k = 2$
+    grids.
+  \item Step counts: $5 \times 5$ baselines $N = 1\,000$, burn-in
+    $100$; Iowa baselines $N = 500$, burn-in $100$; long-run
+    validation (\S\ref{sec:exp-longrun}) $2 \times 10^5$ (A) and
+    $10^5$ (E); $5 \times 5$ forest-move validation
+    (\S\ref{sec:exp-hybrid}) $2 \times 10^5$; Iowa short runs
+    $2 \times 10^5$, long runs $2 \times 10^6$ under $\pi_w$ and
+    $5 \times 10^5$ under $\pi_w^{\mathrm{tree}}$; scaling experiment
+    $5 \times 10^4$ per chain, $10^5$ for $N \ge 16$. Burn-in $10\%$
+    unless stated.
   \item Random seeds: base seed 42 with a distinct offset per chain
     (independent streams for Python \texttt{random} and
-    \texttt{numpy}).
+    \texttt{numpy}); seed 43 for the second Iowa long run.
 \end{itemize}
 
 \subsection{Chain-specific parameters}\label{app:chains}
 
+Table~\ref{tab:hyperparams} lists every locked value.
+
 \begin{table}[htbp]
 \centering
-\small
+\footnotesize
 \begin{tabular}{lll}
 \toprule
 Chain & Parameter & Value \\
 \midrule
 A & $\lambda$ (target temperature) & 0.10 \\
-E & $\alpha$ & 1.0 \\
-E & $\beta$ & 10.0 ($\tau = \alpha/\beta = 0.1$; Corollary~\ref{cor:small-tau} gives the resulting move size and \S\ref{sec:mobility} places the mobility optimum near $\tau = 0.3$) \\
-E & Rounding & single-shot Bernoulli($x^\star$) \\
-E & $\lambda$ (MH target) & 0.10 \\
+E & $\alpha$, $\beta$ & 1.0, 10.0 ($\tau = \alpha/\beta = 0.1$) \\
+E & Rounding & single-shot Bernoulli($x^\star$), clip $10^{-12}$ \\
 T & cut edge & uniform over all tree edges; fair-coin labels \\
-H & $p_{\mathrm{loc}}$ & 0.1 (Iowa), 0.2 and 0.5 ($5 \times 5$) \\
-H & $\tau = \alpha/\beta$ & 0.1, and 0.3 where stated \\
+F & cut edge & uniform over balanced tree edges; fair-coin labels; retry up to 20 trees \\
+F & pair & uniform over boundary pairs \\
+H & $p_{\mathrm{loc}}$ & 0.1 (Iowa long runs), 0.1 and 0.3 (Iowa short runs), 0.2 ($5 \times 5$), 0.3 (grids) \\
+H & $\tau$ & 0.1; 0.03 in the rerun of \S\ref{sec:exp-scaling} \\
+Iowa $\lambda$ & uniform / perimeter / density & 0.100 / 0.343 / 0.718 (equal tempering at the start plan) \\
 \bottomrule
 \end{tabular}
 \caption{Locked-in hyperparameters for the chains of
-  Table~\ref{tab:five-chains}.}\label{tab:hyperparams}
+  Table~\ref{tab:chains}.}\label{tab:hyperparams}
 \end{table}
 
 \subsection{Compute environment}\label{app:compute}
 
 \begin{itemize}
-  \item macOS (Darwin 23.6.0), Python 3.12.
-  \item Gurobi 13.0.2 (academic license) for the QP solves that the
+  \item macOS (Darwin 23.6.0), Python 3.12, and a Linux container
+    (Python 3.13) for the analytic checks and prototypes.
+  \item Gurobi 13.0 (academic license) for the QP solves that the
     linear-solve path of Lemma~\ref{lem:row-stochastic} does not
-    cover, at its default thread count.
+    cover.
   \item GerryChain 0.2.22 for the ReCom proposal and the initial tree
     partitions; NetworkX 3.x for graph operations.
-  \item One Python process per run; no GPU. All experiments were run
-    on a 2024 MacBook.
+  \item One Python process per chain, single-threaded, at reduced
+    priority; the ten Iowa long runs and the scaling chains ran
+    concurrently on an 11-core machine, each forest chain at the same
+    time as its hybrid partner so that both members of a ratio see
+    the same load. All ratios are also reported per step.
 \end{itemize}
-
-%════════════════════════════════════════════════════════════════════════════════
-\section{Partition fiber structure: communities without bottlenecks}\label{sec:fiber-corridors}
-
-This appendix documents a structural diagnostic of the partition fiber
-$\mathcal{P}_k(G; \varepsilon)$ (the set of all valid plans), viewed as a graph under its minimal
-valid move relation. Two findings emerge, one positive and one
-negative, and we report both. Positively, all three enumerated fibers
-carry genuine mesoscale community structure, with modularity far above
-degree-preserving null models, and chains differ sharply in how often
-they cross community boundaries. Negatively, a plausible folk
-intuition (that the communities are ``islands'' joined by narrow
-corridors or bottleneck edges) is refuted by method-independent
-statistics. Community interfaces are wide, nearly all community pairs
-are directly connected, and the literal bridges of the exact-balance
-fiber turn out to be pendant vertices. The diagnostic still motivates
-the local-refinement design of \S\ref{sec:model}, and we believe both
-findings are of independent interest for analyzing redistricting
-MCMC.
-
-\paragraph{Three test beds.}\label{sec:fiber-testbeds}
-
-We construct three fully enumerated partition fibers spanning grid
-size, district count, and balance tolerance.
-
-\begin{table}[htbp]
-\centering
-\small
-\begin{tabular}{lrrrrrl}
-\toprule
-Fiber & Nodes & Edges & $k$ & $\varepsilon$ & Sizes & Adjacency \\
-\midrule
-$5 \times 5$, $\varepsilon = 0$    & 4\,006   & 13\,416  & 5 & 0    & \{5\}       & boundary swap \\
-$5 \times 5$, $\varepsilon = 0.20$ & 193\,128 & 969\,760 & 5 & 0.20 & \{4, 5, 6\} & single flip \\
-$4 \times 4$, $\varepsilon = 0.25$ & 1\,953   & 7\,024   & 4 & 0.25 & \{3, 4, 5\} & single flip \\
-\bottomrule
-\end{tabular}
-\caption{The three test-bed fibers. Adjacency is the \emph{minimal
-  valid move} of each fiber. At $\varepsilon = 0$ no single-vertex
-  reassignment preserves exact balance (it produces districts of sizes
-  4 and 6), so adjacency is the boundary \emph{swap}, which exchanges one
-  boundary vertex of district $a$ with one of district $b$, both
-  districts remaining connected. At $\varepsilon > 0$ adjacency is the
-  single \emph{flip}, which reassigns one boundary vertex, both affected
-  districts remaining connected and within size bounds. Cross-fiber
-  comparisons carry one caveat. The $\varepsilon = 0$
-  fiber lives under a different (two-vertex) move relation than the
-  $\varepsilon > 0$ fibers.}\label{tab:fibers}
-\end{table}
-
-For each fiber, all valid partitions are enumerated and the single-flip
-adjacency graph is built explicitly (enumeration runtimes on a 2024
-MacBook range from $\sim 5$ s for the $4 \times 4$,
-$\varepsilon = 0.25$ fiber to $\sim 50$ min for the $5 \times 5$,
-$\varepsilon = 0.20$ fiber; scripts accompany the replication
-materials).
-
-\paragraph{Community structure, validated against null models.}\label{sec:fiber-islands}
-
-Each fiber graph carries substantial mesoscale community structure
-under modularity maximization. We report the method per fiber (greedy
-modularity, Clauset--Newman--Moore, for the $\varepsilon = 0$ and
-$4 \times 4$ fibers; Louvain, resolution $1.0$, seed 42, for the large
-$\varepsilon = 0.20$ fiber), validate against degree-preserving
-rewiring nulls, and treat the specific community counts as
-method-dependent descriptive statistics.
-
-\begin{table}[htbp]
-\centering
-\small
-\begin{tabular}{lrrrlrrr}
-\toprule
-& \multicolumn{4}{c}{Community structure}
-& \multicolumn{3}{c}{Anti-bottleneck statistics} \\
-\cmidrule(lr){2-5}\cmidrule(lr){6-8}
-Fiber & Comm. & $Q$ & Null $Q$ & Method
-      & Pairs conn. & Inter-comm.\ edges & Width (med/max) \\
-\midrule
-$5 \times 5$, $\varepsilon = 0$    & 10 & 0.65 & 0.36 & CNM
-  & 15/15 & 18.3\% & 142 / 383 \\
-$5 \times 5$, $\varepsilon = 0.20$ & 26 & 0.69 & n/a  & Louvain
-  & 320/325 & 26.8\% & 667 / 3\,006 \\
-$4 \times 4$, $\varepsilon = 0.25$ & 7  & 0.58 & 0.34 & CNM
-  & 21/21 & 23.3\% & 71 / 186 \\
-\bottomrule
-\end{tabular}
-\caption{Left: community decompositions with degree-preserving null
-  baselines (mean $Q$ of CNM on double-edge-swap rewirings of the same
-  graph; the $193$k-node fiber's null is omitted for cost). Real $Q$
-  exceeds null $Q$ by $0.24$--$0.29$, so the community structure is
-  genuine, not a degree-sequence artifact. Counts vary with the
-  detection method and should be read qualitatively. Right:
-  the statistics that refute the corridor picture. Nearly every pair
-  of communities shares a direct interface (``pairs conn.''\ counts
-  the large-community pairs at $\varepsilon = 0$), interfaces are
-  tens to thousands of edges wide, and a fifth to a quarter of all
-  fiber edges run between communities. The exact-balance fiber's 16
-  literal single-edge bridges each split off a \emph{single vertex}
-  (pendant leaves), not an island, and the six large
-  $\varepsilon = 0$ communities have conductance $0.15$--$0.22$, an
-  order of magnitude above bottleneck territory.}
-\label{tab:communities}
-\end{table}
-
-\paragraph{No narrow corridors: a corrected intuition.}\label{sec:fiber-corridors-invariant}
-
-It is tempting to picture these communities as islands joined by a few
-narrow corridors, with bottleneck edges controlling passage. The
-method-independent statistics on the right of
-Table~\ref{tab:communities} refute that picture on all three
-fibers.
-
-Concretely, on the $\varepsilon = 0.20$ fiber, interfaces thinner than
-50 edges do exist (there are 16 of them), but they are simply the tail
-of a width distribution whose median is 667 and whose top interfaces
-carry $3\,000$ edges; a chain moving through this graph crosses
-between communities through the wide interfaces, and the thin tail is
-irrelevant to mixing. The correct summary of fiber macro-structure is
-therefore \emph{communities without bottlenecks}. Valid-plan space is
-regionally organized but well connected, and slow traversal by local
-chains (below) is a property of the \emph{dynamics}, not of corridor
-topology. This negative result matters for chain design. It says
-local chains stall not because the state space is nearly disconnected
-but because their moves are small and, in Chain E's case, because
-distant proposals are rarely feasible (\S\ref{sec:mobility}); global
-recombination moves, by
-contrast, relocate across communities in a single step.
-
-\paragraph{Chain step-trace diagnostic.}\label{sec:fiber-trace}
-
-The community decomposition supports a direct diagnostic for any
-redistricting chain. We label each visited partition by its
-greedy-modularity community on the $\varepsilon = 0$ fiber and record
-the \emph{jump rate}, the fraction of steps that move to a
-different community.
-
-\begin{table}[htbp]
-\centering
-\small
-\begin{tabular}{lrrr}
-\toprule
-Chain & Communities visited & Jump rate & Jumps in 1\,000 steps \\
-\midrule
-V: Vanilla ReCom        & 8/10 & 15.3\% & 153 \\
-A: Tempered ReCom       & 7/10 & 12.7\% & 127 \\
-B: QP-diffusion (50/50) & 6/10 & 4.6\%  & 46  \\
-C: ReCom + IQP local    & 6/10 & 10.5\% & 105 \\
-D: ReCom + spectral mix & 7/10 & 9.3\%  & 93  \\
-E: QP-MH exact          & 2/10 & 0.3\%  & 3   \\
-\bottomrule
-\end{tabular}
-\caption{Inter-community jump rates on the $5 \times 5$,
-  $\varepsilon = 0$ fiber (1\,000 steps per chain, seed 42, per-chain
-  RNG streams). A community-blind baseline crosses at roughly the
-  inter-community edge share (18.3\%,
-  Table~\ref{tab:communities}); ReCom variants (V, A) sit near it
-  at $\sim 13$--15\% per step, the local kernels (B, C, D) are
-  stickier at $\sim 5$--11\%, and the strictly local QP-MH chain (E)
-  almost never crosses, a property of its small accepted moves rather
-  than of any bottleneck in the fiber. Chains B, C and D are the
-  companion paper's continuous, integer and spectral mixtures,
-  included here because the diagnostic was run on all
-  six.}\label{tab:island-trace}
-\end{table}
-
-\textbf{Reading of the diagnostic.} ReCom relocates across
-communities in single steps; optimization-guided local kernels work
-within them; and the exact-but-strictly-local Chain E shows the
-failure mode of small accepted moves. (Per-chain step-traces, which
-show the same contrast as dwell patterns over time, are released as
-supplementary figures.) The regimes are complementary, and they
-suggest an explicit design principle. A good redistricting sampler
-should combine global moves that relocate across regions of plan
-space with local moves that refine within them; ReCom does the
-former, anchored local kernels the latter. This is the design of
-the hybrid of \S\ref{sec:hybrid} and of the companion paper's Chains
-B and C, each step a random mixture of a tree move and a diffusion
-move. We note the diagnostic's limits (one run per chain on one fiber, and
-community labels from a specific detection method) and read it as
-motivating evidence, not proof.
 
 %════════════════════════════════════════════════════════════════════════════════
 \section{Reproducibility checklist}\label{app:reproducibility}
 %════════════════════════════════════════════════════════════════════════════════
 
+\begingroup
+\raggedright
 \begin{itemize}
   \item Code: \texttt{diffusion\_model/recom/} in the project
     repository.
   \item Modules: \texttt{problems.py} (graph setup, balanced initial
     plans), \texttt{chains.py} (chain runners, balance-validated
     ReCom wrapper, per-step audit), \texttt{qp\_model.py}
-    (QP/IQP/spectral/QP-MH step factories, global-ideal balance
-    windows), \texttt{diagnostics.py} (KL/TV diagnostics).
+    (QP and QP-MH step factories, global-ideal balance windows),
+    \texttt{hybrid.py} (the partition-level tree move, Chain E with
+    the linear-solve path, and their analytic check),
+    \texttt{forest\_recom.py} (the forest move, the lifted local move,
+    the two targets, and the analytic check on the lifted
+    $2 \times 3$ fiber), \texttt{kill\_stats.py} (ESS, noise floors,
+    batch-means Hotelling with bin merging), \texttt{diagnostics.py}.
   \item Orchestrators: \texttt{iowa\_target\_matched.py} (the
-    baseline chains V, A and E; mode, seed and kernel as CLI
-    arguments), \texttt{long\_run\_5x5.py} and
+    baseline chains V, A and E), \texttt{long\_run\_5x5.py} and
     \texttt{matrix\_tree\_targets.py} (\S\ref{sec:exp-5x5}),
     \texttt{calibration\_distance.py} and \texttt{fig\_calibration.py}
-    (\S\ref{sec:exp-longrun}, reading only stored artifacts),
-    \texttt{db\_check\_2x3.py} (Remark~\ref{rem:qpmh-scope}),
-    \texttt{long\_run\_2x3.py} with \texttt{gof\_2x3.py}
-    (\S\ref{sec:exp-2x3}; arguments \texttt{1000000 42}),
-    \texttt{spectral\_move\_size.py} and \texttt{fig\_spectral.py}
-    (\S\ref{sec:diffusion-theory}), \texttt{acceptance\_sweep.py}
-    (Table~\ref{tab:mobility}), \texttt{mobility\_law.py}
-    (Table~\ref{tab:mobility-law}), \texttt{hybrid.py} (the exact
-    tree move, the hybrid, and the analytic kernel check of
-    \S\ref{sec:hybrid}) with \texttt{hybrid\_validate\_5x5.py}
-    (Table~\ref{tab:hybrid-5x5}; arguments \texttt{200000 42 0.5 0.1}
-    and \texttt{200000 42 0.2 0.3}), \texttt{hybrid\_iowa.py}
-    (Table~\ref{tab:hybrid-iowa}; arguments \texttt{200000 42 0.1}
-    and \texttt{200000 42 0.3}) with \texttt{hybrid\_iowa\_long.py}
-    (the $2 \times 10^6$-step rows; arguments \texttt{tree 2000000}
-    and \texttt{hybrid 2000000}, with \texttt{42} or \texttt{43} as a
-    third argument for the seed), and \texttt{ten\_seed\_stats.py}
-    (between-seed statistics).
-  \item Outputs, all under \texttt{iowa\_hybrid\_test\_out/}:
-    \texttt{target\_matched\_*\_seed*.npz} for the baseline chains,
-    each stamped with the full configuration and containing per-step
-    cut traces, timings, and balance-audit arrays;
-    \texttt{long\_run\_5x5\_seed42.npz},
-    \texttt{matrix\_tree\_targets.npz} and
-    \texttt{calibration\_distance\_seed42.npz} for
-    \S\ref{sec:exp-longrun}; \texttt{long\_run\_2x3\_n*\_seed42.npz}
-    for \S\ref{sec:exp-2x3}; \texttt{spectral\_move\_size.npz},
-    \texttt{acceptance\_sweep\_5x5.npz} and
-    \texttt{mobility\_law\_5x5.npz} for \S\ref{sec:diffusion-theory}
-    and \S\ref{sec:mobility}; and \texttt{hybrid\_*.npz} for
-    \S\ref{sec:exp-hybrid}, so every table can be regenerated from
-    its own artifact.
-  \item Fibers: \texttt{fiber\_5x5/} contains the $5 \times 5$ and
-    $4 \times 4$ enumeration scripts and precomputed
-    adjacency files.
-  \item Random seeds: base 42, per-chain offsets. Gurobi default seed
-    (deterministic given the same input).
+    (\S\ref{sec:exp-longrun}), \texttt{db\_check\_2x3.py}
+    (Remark~\ref{rem:qpmh-scope}), \texttt{long\_run\_2x3.py} with
+    \texttt{gof\_2x3.py} (\S\ref{sec:exp-2x3}; arguments
+    \texttt{1000000 42}), \texttt{spectral\_move\_size.py} and
+    \texttt{fig\_spectral.py} (\S\ref{sec:diffusion-theory}),
+    \texttt{acceptance\_sweep.py} (Table~\ref{tab:mobility}),
+    \texttt{mobility\_law.py} (Table~\ref{tab:mobility-law}),
+    \texttt{forest\_validate\_5x5.py} (Table~\ref{tab:hybrid-5x5};
+    arguments \texttt{200000 42 0.2 0.1 pi} and \texttt{... tree}),
+    \texttt{forest\_iowa.py} (Tables~\ref{tab:iowa-short}
+    and~\ref{tab:iowa-long}; \texttt{short 200000 42 0.1 pi|tree},
+    \texttt{long forest|hybrid 2000000 42|43 pi [0.3]},
+    \texttt{long forest|hybrid 500000 42|43 tree}),
+    \texttt{forest\_verdict.py} (the verdict table),
+    \texttt{forest\_scaling.py} with \texttt{forest\_scaling\_parallel.py}
+    (Table~\ref{tab:scaling}, Figure~\ref{fig:scaling}; arguments
+    \texttt{50000 42 6,8,10,12,16,20 pi:1,pi:2,tree:0.1,tree:1 0.3
+    --fig}, and the same with \texttt{TAU = 0.03} for the rerun),
+    \texttt{hybrid\_validate\_5x5.py}, \texttt{hybrid\_iowa.py} and
+    \texttt{hybrid\_iowa\_long.py} (the partition-level tree move's
+    rows), \texttt{ten\_seed\_stats.py} (between-seed statistics).
+  \item Outputs, all under \texttt{iowa\_hybrid\_test\_out/}, each
+    stamped with its configuration: \texttt{target\_matched\_*.npz},
+    \texttt{long\_run\_5x5\_seed42.npz}, \texttt{matrix\_tree\_targets.npz},
+    \texttt{calibration\_distance\_seed42.npz},
+    \texttt{long\_run\_2x3\_n*\_seed42.npz},
+    \texttt{spectral\_move\_size.npz}, \texttt{acceptance\_sweep\_5x5.npz},
+    \texttt{mobility\_law\_5x5.npz}, \texttt{hybrid\_*.npz},
+    \texttt{forest\_validate\_5x5\_*.npz}, \texttt{forest\_iowa\_*.npz},
+    \texttt{forest\_verdict.txt}, \texttt{forest\_scaling\_seed42*.npz},
+    with the console logs beside them.
+  \item Fibers: \texttt{fiber\_5x5/} contains the $5 \times 5$
+    enumeration script and the enumerated partitions.
   \item Reproducibility across sessions. The $5 \times 5$ runs and the
     Iowa runs under the uniform and density kernels reproduce bit for
     bit from their seeds. The Iowa runs under the perimeter kernel do
-    not: a repeat of the $\tau = 0.1$ session matched the stored
+    not: a repeat of one $\tau = 0.1$ session matched the stored
     trajectories for 21\,217 and 185\,390 steps and then diverged,
     which we attribute to floating-point sensitivity of the QP solver
     fallback under that kernel's wide range of edge weights. The
-    stored artifacts are the realizations reported, the earlier
-    session is kept as
-    \texttt{hybrid\_iowa\_tau0.1\_earlier\_session.npz}, and the
-    perimeter-target conclusions rest on the long runs rather than
-    on any single short run.
+    stored artifacts are the realizations reported, and every
+    perimeter-target conclusion rests on long runs and two seeds.
+  \item Precinct scale: \todo{data file, commands and artifacts of
+    \S\ref{sec:exp-precinct}.}
 \end{itemize}
+\endgroup
 
 \bibliographystyle{plain}
 \bibliography{ref}
