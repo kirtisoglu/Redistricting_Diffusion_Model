@@ -605,7 +605,268 @@ Commit both with the log.
 
 ### Results
 
-(paste the table; keep the figure)
+Status 2026-10-22: run, with the tau = 0.03 follow-up the plan asks for.
+Figure: `Papers/fig/forest_scaling.{pdf,png}` (tau = 0.1 run, drawn by the
+command above with `--fig`).
+
+How it was run. The 48 chains sum to 9.2 hours of wall time here, so the
+serial command was replaced by `recom/forest_scaling_parallel.py`, which
+gives the same artifact. Each chain reseeds both generators and builds its
+own tau cache, so its trajectory depends only on (N, target, chain, seed).
+The driver runs every chain as its own process (`nice -n 19`, one thread),
+each forest chain at the same time as its hybrid partner so both members
+of a ratio see the same machine load, then merges into exactly the keys
+`run()` writes and prints `run()`'s table. Checked on a small
+configuration: 87 keys and 64 chain traces identical to the serial run,
+only wall times differ. Elapsed 62 minutes (19:00 to 20:03).
+
+The npz is now written with `savez_compressed` (one-word change in both
+`forest_scaling.py` and the driver). Uncompressed it is 107 MiB, over
+GitHub's 100 MiB file limit; compressed it is 34 MiB with every array
+identical (checked key by key), and `--fig` redraws a byte-identical PNG
+from it. The per-chain `_parts/` folders are not committed; the merged npz
+holds all of them.
+
+Main run, tau = 0.1 (`forest_scaling_seed42.log`):
+
+```
+grids k=2, eps=0.1, p_local=0.3, tau=0.1, seed 42, 50000 steps (x2 for N >= 16), targets pi:1 pi:2 tree:0.1 tree:1
+
+  N   target  chain P(feas)  acc f  acc l  log tau-ratio   log pi-ratio    cut                quarter means    ESS  wall s   ESS/s  ratio
+  6     pi:1 forest   1.000  0.791    nan   -0.87 ± 0.02   +0.69 ± 0.01   10.3   10.24  10.26  10.29  10.25   9723    37.7  258.12   1.00
+  6     pi:1 hybrid   1.000  0.789  0.423   -0.87 ± 0.02   +0.69 ± 0.02   10.3   10.31  10.35  10.19  10.31   8902    34.1  261.17   1.01
+  6     pi:2 forest   1.000  0.304    nan   +2.89 ± 0.01   -4.75 ± 0.02    7.2    7.19   7.23   7.20   7.21   4527    31.9  141.74   1.00
+  6     pi:2 hybrid   1.000  0.300  0.388   +2.92 ± 0.02   -4.80 ± 0.03    7.2    7.17   7.18   7.17   7.18   3282    29.5  111.36   0.79
+  6 tree:0.1 forest   1.000  0.776    nan   +0.84 ± 0.02   -0.91 ± 0.02    8.9    8.92   8.86   8.84   8.91  22399    34.3  653.63   1.00
+  6 tree:0.1 hybrid   1.000  0.775  0.422   +0.84 ± 0.02   -0.91 ± 0.02    8.9    8.93   8.90   8.94   8.86  14073    31.4  448.14   0.69
+  6   tree:1 forest   1.000  0.230    nan   +3.24 ± 0.01   -5.91 ± 0.02    6.9    6.97   6.88   6.91   6.87   3366    31.3  107.43   1.00
+  6   tree:1 hybrid   1.000  0.222  0.382   +3.28 ± 0.02   -5.99 ± 0.03    6.9    6.92   6.87   6.81   6.85   2431    29.3   82.94   0.77
+
+  8     pi:1 forest   1.000  0.720    nan   -1.53 ± 0.02   +1.26 ± 0.02   15.1   15.17  14.97  15.04  15.14   9068    76.7  118.20   1.00
+  8     pi:1 hybrid   1.000  0.726  0.378   -1.50 ± 0.03   +1.23 ± 0.03   15.0   15.04  15.09  15.01  14.97   7712    67.0  115.14   0.97
+  8     pi:2 forest   1.000  0.202    nan   +4.40 ± 0.02   -7.56 ± 0.03   10.0    9.97   9.87  10.20  10.04   1431    67.4   21.22   1.00
+  8     pi:2 hybrid   1.000  0.192  0.324   +4.47 ± 0.02   -7.69 ± 0.04   10.0   10.06   9.97   9.98   9.95   1541    60.5   25.48   1.20
+  8 tree:0.1 forest   1.000  0.730    nan   +1.28 ± 0.02   -1.38 ± 0.02   12.7   12.68  12.74  12.71  12.77  20300    77.7  261.24   1.00
+  8 tree:0.1 hybrid   1.000  0.725  0.366   +1.31 ± 0.02   -1.42 ± 0.03   12.7   12.65  12.74  12.73  12.73  12451    67.9  183.43   0.70
+  8   tree:1 forest   1.000  0.151    nan   +4.83 ± 0.02   -8.98 ± 0.03    9.7    9.64   9.64   9.71   9.69   1172    71.7   16.34   1.00
+  8   tree:1 hybrid   1.000  0.151  0.309   +4.82 ± 0.02   -8.97 ± 0.04    9.7    9.64   9.90   9.69   9.57    849    63.4   13.38   0.82
+
+ 10     pi:1 forest   1.000  0.693    nan   -2.09 ± 0.03   +1.76 ± 0.03   20.1   20.15  20.11  20.11  19.98   7204   155.0   46.47   1.00
+ 10     pi:1 hybrid   1.000  0.685  0.308   -2.21 ± 0.04   +1.87 ± 0.03   20.2   19.91  20.40  19.97  20.55   3697   127.8   28.93   0.62
+ 10     pi:2 forest   1.000  0.119    nan   +6.47 ± 0.02  -11.48 ± 0.04   12.6   12.59  12.42  12.70  12.74    770   133.9    5.75   1.00
+ 10     pi:2 hybrid   1.000  0.122  0.251   +6.43 ± 0.03  -11.40 ± 0.05   12.6   12.63  12.70  12.41  12.78    752   115.0    6.54   1.14
+ 10 tree:0.1 forest   1.000  0.682    nan   +1.98 ± 0.03   -2.15 ± 0.03   16.6   16.62  16.61  16.58  16.57  17546   159.3  110.15   1.00
+ 10 tree:0.1 hybrid   1.000  0.690  0.302   +1.90 ± 0.03   -2.07 ± 0.03   16.6   16.61  16.66  16.71  16.62  12097   132.8   91.06   0.83
+ 10   tree:1 forest   1.000  0.089    nan   +6.86 ± 0.02  -12.94 ± 0.04   12.3   12.42  12.18  12.26  12.21    466   144.2    3.24   1.00
+ 10   tree:1 hybrid   1.000  0.085  0.242   +7.03 ± 0.03  -13.27 ± 0.05   12.1   12.28  12.02  12.16  11.96    449   122.4    3.67   1.13
+
+ 12     pi:1 forest   1.000  0.666    nan   -2.69 ± 0.04   +2.32 ± 0.03   25.4   25.39  25.56  25.26  25.43   7637   254.9   29.96   1.00
+ 12     pi:1 hybrid   1.000  0.660  0.251   -2.94 ± 0.05   +2.52 ± 0.04   25.6   25.64  25.39  25.87  25.48   3205   208.4   15.38   0.51
+ 12     pi:2 forest   1.000  0.066    nan   +8.84 ± 0.03  -16.02 ± 0.05   15.1   15.19  14.81  15.06  15.20    208   225.6    0.92   1.00
+ 12     pi:2 hybrid   1.000  0.067  0.193   +8.90 ± 0.03  -16.14 ± 0.06   15.1   15.22  14.75  15.13  15.11    362   189.3    1.91   2.08
+ 12 tree:0.1 forest   1.000  0.643    nan   +2.76 ± 0.03   -3.01 ± 0.03   20.6   20.58  20.66  20.57  20.59  14469   273.5   52.90   1.00
+ 12 tree:0.1 hybrid   1.000  0.638  0.250   +2.84 ± 0.04   -3.10 ± 0.04   20.6   20.55  20.53  20.59  20.65   9541   226.5   42.12   0.80
+ 12   tree:1 forest   1.000  0.052    nan   +9.19 ± 0.03  -17.51 ± 0.05   14.7   14.70  14.61  14.67  15.02    253   247.8    1.02   1.00
+ 12   tree:1 hybrid   1.000  0.059  0.189   +8.95 ± 0.03  -17.04 ± 0.06   15.0   15.13  14.72  15.18  15.09    314   210.7    1.49   1.46
+
+ 16     pi:1 forest   1.000  0.620    nan   -4.19 ± 0.04   +3.68 ± 0.04   36.9   36.79  36.87  36.93  36.90   7343  1540.4    4.77   1.00
+ 16     pi:1 hybrid   1.000  0.618  0.162   -4.15 ± 0.05   +3.63 ± 0.04   36.9   36.50  37.03  36.54  37.34   6208  1236.2    5.02   1.05
+ 16     pi:2 forest   1.000  0.025    nan  +13.80 ± 0.03  -25.70 ± 0.05   20.4   20.73  19.88  20.67  20.15    155  1076.7    0.14   1.00
+ 16     pi:2 hybrid   1.000  0.021  0.117  +14.35 ± 0.03  -26.72 ± 0.06   19.8   19.72  19.93  19.95  19.75    263   914.6    0.29   2.00
+ 16 tree:0.1 forest   1.000  0.571    nan   +4.80 ± 0.03   -5.24 ± 0.03   28.8   28.80  28.77  28.81  28.79  23139  1229.3   18.82   1.00
+ 16 tree:0.1 hybrid   1.000  0.571  0.168   +4.77 ± 0.04   -5.21 ± 0.04   28.8   28.94  28.70  28.72  28.64  15469  1018.5   15.19   0.81
+ 16   tree:1 forest   1.000  0.018    nan  +14.17 ± 0.03  -27.35 ± 0.05   20.0   20.41  19.41  20.23  20.08    128  1103.4    0.12   1.00
+ 16   tree:1 hybrid   1.000  0.018  0.112  +14.23 ± 0.03  -27.47 ± 0.06   20.0   20.05  19.93  20.10  19.82    161   951.1    0.17   1.45
+
+ 20     pi:1 forest   1.000  0.582    nan   -5.70 ± 0.05   +5.06 ± 0.05   49.0   48.84  48.63  48.39  50.03   1128  2997.2    0.38   1.00
+ 20     pi:1 hybrid   1.000  0.584  0.102   -5.28 ± 0.06   +4.67 ± 0.06   48.6   48.14  48.07  49.46  48.71   2683  2421.1    1.11   2.94
+ 20     pi:2 forest   1.000  0.011    nan  +18.94 ± 0.03  -35.89 ± 0.06   26.0   25.96  25.57  25.69  26.91     62  2472.9    0.03   1.00
+ 20     pi:2 hybrid   1.000  0.009  0.076  +19.94 ± 0.04  -37.79 ± 0.08   25.1   25.10  25.63  25.35  24.39     50  2031.9    0.02   0.98
+ 20 tree:0.1 forest   1.000  0.502    nan   +7.31 ± 0.04   -8.00 ± 0.04   37.0   36.98  36.98  37.05  37.08  15989  2966.9    5.39   1.00
+ 20 tree:0.1 hybrid   1.000  0.502  0.118   +7.23 ± 0.05   -7.91 ± 0.05   37.1   37.24  37.20  36.82  37.09  11906  2425.4    4.91   0.91
+ 20   tree:1 forest   1.000  0.011    nan  +18.88 ± 0.03  -36.75 ± 0.06   26.1   26.54  26.31  25.33  26.22     77  2662.6    0.03   1.00
+ 20   tree:1 hybrid   1.000  0.007  0.072  +19.89 ± 0.04  -38.70 ± 0.08   25.1   25.53  25.28  25.04  24.69    123  2225.8    0.06   1.92
+```
+
+Timing check (printed by the driver's merge). Per-pair cost h/f is 0.80
+to 0.94 and steady across pairs, so running the pairs together did not
+favor either member. On grids the hybrid is about 15% cheaper per step
+(its local steps are cheaper than forest steps), so the ESS/s ratio is the
+ESS-per-step ratio times about 0.85.
+
+```
+  N   target ESS/step f ESS/step h per-step ratio  s/step f  s/step h cost h/f
+  6     pi:1     0.2161     0.1978           0.92     0.75m     0.68m     0.90
+  6     pi:2     0.1006     0.0729           0.73     0.64m     0.59m     0.92
+  6 tree:0.1     0.4977     0.3127           0.63     0.69m     0.63m     0.92
+  6   tree:1     0.0748     0.0540           0.72     0.63m     0.59m     0.94
+  8     pi:1     0.2015     0.1714           0.85     1.53m     1.34m     0.87
+  8     pi:2     0.0318     0.0342           1.08     1.35m     1.21m     0.90
+  8 tree:0.1     0.4511     0.2767           0.61     1.55m     1.36m     0.87
+  8   tree:1     0.0260     0.0189           0.72     1.43m     1.27m     0.88
+ 10     pi:1     0.1601     0.0822           0.51     3.10m     2.56m     0.82
+ 10     pi:2     0.0171     0.0167           0.98     2.68m     2.30m     0.86
+ 10 tree:0.1     0.3899     0.2688           0.69     3.19m     2.66m     0.83
+ 10   tree:1     0.0104     0.0100           0.96     2.88m     2.45m     0.85
+ 12     pi:1     0.1697     0.0712           0.42     5.10m     4.17m     0.82
+ 12     pi:2     0.0046     0.0080           1.74     4.51m     3.79m     0.84
+ 12 tree:0.1     0.3215     0.2120           0.66     5.47m     4.53m     0.83
+ 12   tree:1     0.0056     0.0070           1.24     4.96m     4.21m     0.85
+ 16     pi:1     0.0816     0.0690           0.85    15.40m    12.36m     0.80
+ 16     pi:2     0.0017     0.0029           1.70    10.77m     9.15m     0.85
+ 16 tree:0.1     0.2571     0.1719           0.67    12.29m    10.19m     0.83
+ 16   tree:1     0.0014     0.0018           1.25    11.03m     9.51m     0.86
+ 20     pi:1     0.0125     0.0298           2.38    29.97m    24.21m     0.81
+ 20     pi:2     0.0007     0.0006           0.81    24.73m    20.32m     0.82
+ 20 tree:0.1     0.1777     0.1323           0.74    29.67m    24.25m     0.82
+ 20   tree:1     0.0009     0.0014           1.60    26.63m    22.26m     0.84
+```
+(`m` = milliseconds per step.)
+
+Same-level check, the z test from Step 3 (`forest_scaling_seed42_equilibrium.txt`):
+
+```
+  N   target  ESS f  ESS h  mean f  mean h      z  same level  ratio ESS/s
+  6     pi:1   9723   8902   10.26   10.29  +0.84         yes         1.01
+  6     pi:2   4527   3282    7.21    7.17  -1.04         yes         0.79
+  6 tree:0.1  22399  14073    8.88    8.91  +1.36         yes         0.69
+  6   tree:1   3366   2431    6.91    6.86  -1.45         yes         0.77
+  8     pi:1   9068   7712   15.08   15.03  -0.99         yes         0.97
+  8     pi:2   1431   1541   10.02    9.99  -0.52         yes         1.20
+  8 tree:0.1  20300  12451   12.72   12.71  -0.44         yes         0.70
+  8   tree:1   1172    849    9.67    9.70  +0.47         yes         0.82
+ 10     pi:1   7204   3697   20.09   20.21  +1.32         yes         0.62
+ 10     pi:2    770    752   12.61   12.63  +0.19         yes         1.14
+ 10 tree:0.1  17546  12097   16.59   16.65  +1.48         yes         0.83
+ 10   tree:1    466    449   12.27   12.11  -1.58         yes         1.13
+ 12     pi:1   7637   3205   25.41   25.60  +1.50         yes         0.51
+ 12     pi:2    208    362   15.06   15.05  -0.06         yes         2.08
+ 12 tree:0.1  14469   9541   20.60   20.58  -0.36         yes         0.80
+ 12   tree:1    253    314   14.75   15.03  +1.95         yes         1.46
+ 16     pi:1   7343   6208   36.87   36.85  -0.14         yes         1.05
+ 16     pi:2    155    263   20.36   19.84  -2.46          NO         2.00
+ 16 tree:0.1  23139  15469   28.79   28.75  -0.75         yes         0.81
+ 16   tree:1    128    161   20.03   19.97  -0.25         yes         1.45
+ 20     pi:1   1128   2683   48.97   48.59  -0.91         yes         2.94
+ 20     pi:2     62     50   26.03   25.12  -1.97         yes         0.98
+ 20 tree:0.1  15989  11906   37.02   37.09  +0.87         yes         0.91
+ 20   tree:1     77    123   26.10   25.13  -3.23          NO         1.92
+```
+
+The plan's condition for the tau = 0.03 rerun was met. Panel (c) did rise
+for pi:2 and tree:1 at N = 12 and 16, but the local move's acceptance
+under pi:2 fell from 0.39 at N = 6 to 0.076 at N = 20, and the pi:2 ratio
+fell back to 0.98 at N = 20. Rerun of those two targets at tau = 0.03:
+
+    SCALING_TAU=0.03 SCALING_TARGETS=pi:2,tree:1 python3 recom/forest_scaling_parallel.py schedule
+
+It writes `forest_scaling_seed42_tau0.03_pi2_tree1.npz` (16 MiB), never the
+main artifact. Forest-only chains do not use tau and came out identical
+to the main run's (checked). Elapsed 35 minutes. From
+`forest_scaling_seed42_tau0.03_pi2_tree1.log`:
+
+```
+grids k=2, eps=0.1, p_local=0.3, tau=0.03, seed 42, 50000 steps (x2 for N >= 16), targets pi:2 tree:1
+  N   target  chain P(feas)  acc f  acc l  log tau-ratio   log pi-ratio    cut                quarter means    ESS  wall s   ESS/s  ratio
+  6     pi:2 forest   1.000  0.304    nan   +2.89 ± 0.01   -4.75 ± 0.02    7.2    7.19   7.23   7.20   7.21   4527    34.1  132.89   1.00
+  6     pi:2 hybrid   1.000  0.299  0.736   +2.90 ± 0.02   -4.78 ± 0.03    7.2    7.14   7.19   7.22   7.20   3529    32.2  109.67   0.83
+  6   tree:1 forest   1.000  0.230    nan   +3.24 ± 0.01   -5.91 ± 0.02    6.9    6.97   6.88   6.91   6.87   3366    40.3   83.53   1.00
+  6   tree:1 hybrid   1.000  0.230  0.737   +3.24 ± 0.02   -5.90 ± 0.03    6.9    6.92   6.89   6.86   6.95   2553    38.8   65.86   0.79
+  8     pi:2 forest   1.000  0.202    nan   +4.40 ± 0.02   -7.56 ± 0.03   10.0    9.97   9.87  10.20  10.04   1431    70.0   20.45   1.00
+  8     pi:2 hybrid   1.000  0.203  0.685   +4.40 ± 0.02   -7.57 ± 0.04   10.1   10.01  10.14   9.91  10.15   1342    63.9   20.99   1.03
+  8   tree:1 forest   1.000  0.151    nan   +4.83 ± 0.02   -8.98 ± 0.03    9.7    9.64   9.64   9.71   9.69   1172    74.9   15.64   1.00
+  8   tree:1 hybrid   1.000  0.153  0.670   +4.80 ± 0.02   -8.92 ± 0.04    9.7    9.70   9.69   9.81   9.61    938    67.6   13.87   0.89
+ 10     pi:2 forest   1.000  0.119    nan   +6.47 ± 0.02  -11.48 ± 0.04   12.6   12.59  12.42  12.70  12.74    770   135.7    5.68   1.00
+ 10     pi:2 hybrid   1.000  0.119  0.633   +6.46 ± 0.03  -11.45 ± 0.05   12.6   12.65  12.54  12.63  12.70    704   118.7    5.93   1.05
+ 10   tree:1 forest   1.000  0.089    nan   +6.86 ± 0.02  -12.94 ± 0.04   12.3   12.42  12.18  12.26  12.21    466   148.1    3.15   1.00
+ 10   tree:1 hybrid   1.000  0.093  0.621   +6.83 ± 0.03  -12.88 ± 0.05   12.3   12.12  12.34  12.51  12.26    482   127.8    3.77   1.20
+ 12     pi:2 forest   1.000  0.066    nan   +8.84 ± 0.03  -16.02 ± 0.05   15.1   15.19  14.81  15.06  15.20    208   247.9    0.84   1.00
+ 12     pi:2 hybrid   1.000  0.072  0.586   +8.71 ± 0.03  -15.81 ± 0.06   15.2   15.12  15.42  14.87  15.31    333   213.3    1.56   1.86
+ 12   tree:1 forest   1.000  0.052    nan   +9.19 ± 0.03  -17.51 ± 0.05   14.7   14.70  14.61  14.67  15.02    253   251.3    1.01   1.00
+ 12   tree:1 hybrid   1.000  0.057  0.576   +9.03 ± 0.03  -17.20 ± 0.06   14.9   15.00  14.93  14.68  15.14    332   215.5    1.54   1.53
+ 16     pi:2 forest   1.000  0.025    nan  +13.80 ± 0.03  -25.70 ± 0.05   20.4   20.73  19.88  20.67  20.15    155  1121.0    0.14   1.00
+ 16     pi:2 hybrid   1.000  0.023  0.490  +13.99 ± 0.03  -26.07 ± 0.06   20.1   19.72  20.21  20.60  20.04    226   955.4    0.24   1.72
+ 16   tree:1 forest   1.000  0.018    nan  +14.17 ± 0.03  -27.35 ± 0.05   20.0   20.41  19.41  20.23  20.08    128  1210.9    0.11   1.00
+ 16   tree:1 hybrid   1.000  0.020  0.480  +14.27 ± 0.03  -27.54 ± 0.06   19.9   20.11  19.77  20.07  19.82    270  1048.6    0.26   2.44
+ 20     pi:2 forest   1.000  0.011    nan  +18.94 ± 0.03  -35.89 ± 0.06   26.0   25.96  25.57  25.69  26.91     62  1961.7    0.03   1.00
+ 20     pi:2 hybrid   1.000  0.009  0.421  +19.60 ± 0.04  -37.12 ± 0.07   25.3   25.39  25.29  24.82  25.80    202  1684.1    0.12   3.78
+ 20   tree:1 forest   1.000  0.011    nan  +18.88 ± 0.03  -36.75 ± 0.06   26.1   26.54  26.31  25.33  26.22     77  2117.4    0.04   1.00
+ 20   tree:1 hybrid   1.000  0.007  0.407  +19.97 ± 0.04  -38.86 ± 0.08   25.0   25.54  25.22  24.11  25.31     87  1813.6    0.05   1.32
+```
+
+Timing at tau = 0.03: cost h/f 0.86 to 0.96, steady across pairs. Same-level
+check (`forest_scaling_seed42_tau0.03_pi2_tree1_equilibrium.txt`):
+
+```
+  N   target  ESS f  ESS h  mean f  mean h      z  same level  ratio ESS/s
+  6     pi:2   4527   3529    7.21    7.19  -0.64         yes         0.83
+  6   tree:1   3366   2553    6.91    6.90  -0.11         yes         0.79
+  8     pi:2   1431   1342   10.02   10.05  +0.58         yes         1.03
+  8   tree:1   1172    938    9.67    9.70  +0.55         yes         0.89
+ 10     pi:2    770    704   12.61   12.63  +0.18         yes         1.05
+ 10   tree:1    466    482   12.27   12.31  +0.40         yes         1.20
+ 12     pi:2    208    333   15.06   15.18  +0.71         yes         1.86
+ 12   tree:1    253    332   14.75   14.94  +1.31         yes         1.53
+ 16     pi:2    155    226   20.36   20.14  -1.00         yes         1.72
+ 16   tree:1    128    270   20.03   19.94  -0.45         yes         2.44
+ 20     pi:2     62    202   26.03   25.33  -2.21          NO         3.78
+ 20   tree:1     77     87   26.10   25.05  -3.14          NO         1.32
+```
+
+Reading, against the expectation above.
+
+(a) Holds, with one correction. Under pi:2 and tree:1 the forest move's
+acceptance falls by a factor of about 30 from N = 6 to N = 20 (0.300 to
+0.009 and 0.222 to 0.007, hybrid chains as plotted), close to geometric
+in N. The expectation had pi:1 decaying with them. It does not: pi:1
+tracks the control (0.79 to 0.58 against 0.78 to 0.50), as the
+prototype's 0.79, 0.70, 0.63 already hinted. So the split is by how
+strongly the target is tempered, not by whether it carries tree weights.
+That is the cleaner statement for the paper.
+
+(b) Holds, but the growth is faster than linear in N. The mismatch is
+close to proportional to the number of units in the merged pair, N^2.
+Per unit it is 0.052, 0.050, 0.050, 0.050, 0.048, 0.045 for pi:2 (1.9 to
+17.9 in total) and 0.075 down to 0.047 for tree:1 (2.7 to 18.8). For the
+two mild targets it stays below 0.7 at every N.
+
+(c) Holds through N = 16, one seed. The control stays below 1 at every N
+(0.69 to 0.91), so the local move is a passenger there, as on Iowa. pi:2
+and tree:1 start below 1 at N = 6 (0.77 to 0.83), cross 1 at N = 8 to
+10, and sit at 1.45 to 2.08 at N = 12 and 16 with tau = 0.1, or 1.53 to
+2.44 with tau = 0.03. At N <= 16 the two tau values give the same picture
+within single-seed noise (pi:2 does a little better at 0.1, tree:1 at
+0.03). The move-size rule matters only at N = 20, where tau = 0.03 keeps
+the local acceptance at 0.41 to 0.42 against 0.07 to 0.08 at tau = 0.1.
+pi:1 has no clean trend (1.01, 0.97, 0.62, 0.51, 1.05, 2.94). Its N = 20
+value comes from the forest chain: its ESS drops from 7343 at N = 16 to
+1128 at N = 20 with the same step count, and its last quarter jumps
+(48.4 to 50.0). Read that cell as unsettled, not as a gain.
+
+N = 20 is not equilibrated under the strong targets. The same-level check
+fails at N = 16 pi:2 (z = -2.46, tau 0.1 only; it passes at tau 0.03) and
+at N = 20 tree:1 in both runs and N = 20 pi:2 at tau 0.03. In every miss,
+and in most strong-target cells at N >= 16, the hybrid's mean cut sits 0.5
+to 1 edge below the forest's. This is not a leftover from the start. All
+chains start at the straight cut (cut = N), below equilibrium, and the
+first tenth of every trace is already at the equilibrium level. At N = 20
+the forest chain's ESS is 62 and 77 and its means by tenth swing by about
+1.5 cut edges, as large as the gap. So the check cannot separate slow
+mixing of the forest chain from a real difference. Both moves are exact by
+construction, so a real difference is not expected, but no N = 20
+strong-target number should go into the paper on this run.
+
+Before the figure goes into the paper (not run; not in the plan):
+- [ ] Second seed (43) for pi:2 and tree:1 at N = 12 and 16, both tau,
+      about 40 minutes with the driver.
+- [ ] N = 20 for pi:2 and tree:1 at 4x the steps, or drop N = 20 from
+      panel (c) and say why.
+- [ ] Decide which tau panel (c) shows for the strong targets. The figure
+      now shows tau = 0.1 for all four; the honest choice is tau = 0.03 for
+      pi:2 and tree:1 (the move-size rule's own choice) with tau = 0.1 in
+      the caption or an appendix.
+- [ ] Fix the "Expected" text in Section 4.7's write-up: pi_w at lam = 1
+      is a mild target on grids, and the mismatch grows like N^2, not N.
 
 ## Items still open from the previous version of this file
 

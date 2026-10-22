@@ -154,7 +154,7 @@ def run():
                 store[f"{tag}_wall"] = res["wall"]
                 store[f"{tag}_steps"] = steps
         print(flush=True)
-    np.savez(OUT, **store)
+    np.savez_compressed(OUT, **store)          # uncompressed is 107 MiB, over GitHub's 100 MiB limit
     print(f"Saved {OUT.name}")
 
 

@@ -1,0 +1,15 @@
+forest-only chains identical between the tau 0.1 and tau 0.03 runs: True
+
+  N   target  ESS f  ESS h  mean f  mean h      z  same level  ratio ESS/s
+  6     pi:2   4527   3529    7.21    7.19  -0.64         yes         0.83
+  6   tree:1   3366   2553    6.91    6.90  -0.11         yes         0.79
+  8     pi:2   1431   1342   10.02   10.05  +0.58         yes         1.03
+  8   tree:1   1172    938    9.67    9.70  +0.55         yes         0.89
+ 10     pi:2    770    704   12.61   12.63  +0.18         yes         1.05
+ 10   tree:1    466    482   12.27   12.31  +0.40         yes         1.20
+ 12     pi:2    208    333   15.06   15.18  +0.71         yes         1.86
+ 12   tree:1    253    332   14.75   14.94  +1.31         yes         1.53
+ 16     pi:2    155    226   20.36   20.14  -1.00         yes         1.72
+ 16   tree:1    128    270   20.03   19.94  -0.45         yes         2.44
+ 20     pi:2     62    202   26.03   25.33  -2.21          NO         3.78
+ 20   tree:1     77     87   26.10   25.05  -3.14          NO         1.32
