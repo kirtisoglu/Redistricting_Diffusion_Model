@@ -510,10 +510,10 @@ Amended criterion (either p clears it): PASS. Report the pre-registered verdict 
 | pi | density | 42 | 0.1769 | 0.3446 | 1.95 | yes, z = -0.25 |
 | pi | perimeter | 43 | 0.0718 | 0.1649 | 2.29 | yes, z = +0.23 |
 | pi | density | 43 | 0.2135 | 0.4336 | 2.03 | yes, z = +1.46 |
-| tree | perimeter | 42 | 43.92 | 37.4 | 0.85 | yes, z = -0.64 |
-| tree | density | 42 | 32.27 | 29.14 | 0.90 | yes, z = -1.12 |
-| tree | perimeter | 43 | 44.14 | 35.83 | 0.81 | yes, z = +0.32 |
-| tree | density | 43 | 33.87 | 29.23 | 0.86 | yes, z = -0.98 |
+| tree | perimeter | 42 | 43.92 | 37.4 | 0.85 | yes, z = -0.64; quarters 13.05 13.05 13.05 13.02 vs 13.03 13.04 13.02 13.05 |
+| tree | density | 42 | 32.27 | 29.14 | 0.90 | yes, z = -1.12; quarters 7.30 7.30 7.29 7.32 vs 7.31 7.28 7.27 7.29 |
+| tree | perimeter | 43 | 44.14 | 35.83 | 0.81 | yes, z = +0.32; quarters 13.01 13.02 13.05 13.07 vs 13.03 13.04 13.02 13.07 |
+| tree | density | 43 | 33.87 | 29.23 | 0.86 | yes, z = -0.98; quarters 7.30 7.30 7.27 7.30 vs 7.27 7.29 7.28 7.29 |
 | pi, p=0.3 | perimeter | 42 | 0.1226 | 0.3244 | 2.65 | yes, z = -0.02 |
 | pi, p=0.3 | density | 42 | 0.1769 | 0.5587 | 3.16 | yes, z = +0.81 |
 | pi, p=0.3 | perimeter | 43 | 0.0718 | 0.3183 | 4.43 | yes, z = -0.87 |
@@ -541,8 +541,13 @@ Reading of the tree-weighted rows: under the tree-weighted target, where
 the forest move's tree-count ratio cancels, the hybrid is a passenger on
 every cell. The ratios are 0.81 to 0.90 (cost-corrected 0.82 to 0.87),
 both chains sit on the same level (largest |z| is 1.12), and the ESS is
-above 19,000. Together with the pi rows this answers where the local move
-helps. It helps when the global move pays a tree-count ratio against the
+above 19,000. Even per step, before any cost is counted, the hybrid
+decorrelates slightly less: 0.052 to 0.055 effective samples per step
+against 0.060 for the forest move on perimeter, and 0.044 against 0.048
+to 0.051 on density, so a local step contributes less than the forest
+step it replaces (acceptance: forest 0.66 to 0.73, local 0.72 to 0.84;
+this point from the cloud session's reading, commit 81d40c9). Together
+with the pi rows this answers where the local move helps. It helps when the global move pays a tree-count ratio against the
 target, as under the paper's pi, and not when the target absorbs that
 ratio. This is fact 2 of the run sheet, now measured at equilibrium on two
 seeds.
