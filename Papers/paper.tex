@@ -1571,14 +1571,18 @@ each side of the comparison.
 \subsection{Precinct scale}\label{sec:exp-precinct}
 
 \todo{To be written. North Carolina precinct dual graph (2\,692 units,
-$k = 4$, $\varepsilon = 0.05$), perimeter and density targets, forest
-move alone and hybrid at $p_{\mathrm{loc}} = 0.1$ with $\tau$ set by
-the move-size rule, $2 \times 10^5$ steps, two seeds; a timing probe
-first. Report forest acceptance, the two Hastings terms, quarter means,
-ESS per step and per second, and the ratio. Expected from
-\S\ref{sec:exp-scaling}: forest acceptance well below $10^{-2}$ under
-the tempered targets at pairs of about 1\,300 units, hybrid reaching
-equilibrium where the forest move alone does not.}
+7\,593 edges, $k = 13$, $\varepsilon = 0.05$, pairs of about 410
+units), perimeter and density targets at the same tempering as Iowa,
+forest move alone and hybrid at $p_{\mathrm{loc}} = 0.1$ with $\tau$
+set by the move-size rule at two units per proposal
+($\tau \approx 0.04$), $2 \times 10^5$ steps, two seeds with
+different tree-partition starts; a timing probe first (forest step
+66\,ms, local step 70\,ms in Python). Report forest acceptance, the
+two Hastings terms, quarter means, ESS per step and per second, and
+the ratio. Expected from \S\ref{sec:exp-scaling}: forest acceptance
+falling from $0.57$ at the tree-partition start to well below
+$10^{-1}$ at equilibrium, hybrid reaching equilibrium where the forest
+move alone does not.}
 
 %════════════════════════════════════════════════════════════════════════════════
 \section{Discussion}\label{sec:discussion}

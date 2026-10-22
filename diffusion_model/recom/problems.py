@@ -153,19 +153,39 @@ def _load_simple_dual_graph_json(path):
     return Graph.from_networkx(H)
 
 
-def _setup_nc(repo_root, K=4, eps=0.05):
-    """North Carolina precinct-level (NC_VTD): 2692 precincts, k=4
-    sub-state plan to keep pair sizes comparable to half-state."""
-    data = repo_root / "diffusion_model" / "mew" / "data" / "NC_VTD.json"
+def _setup_nc(repo_root, K=13, eps=0.05, seed=None):
+    """North Carolina precinct level: 2692 VTDs, 7593 edges, built from
+    the MGGG NC_VTD shapefile by gerrychain.Graph.from_file (rook
+    adjacency, shared_perim in survey feet, EPSG:6543). K=13 is the
+    congressional count; pairs then hold about 410 precincts. Shared
+    perimeters are rescaled to mean 1 so that the perimeter and density
+    kernels have the same scale as the uniform kernel; density is
+    TOTPOP / ALAND10 normalised to mean 1, as on Iowa."""
+    data = repo_root / "NC_VTD" / "NC_VTD.json"
     print(f"Loading NC from {data} ...")
-    graph = _load_simple_dual_graph_json(data)
+    graph = Graph.from_json(str(data))
+    raw_dens = []
     for n in graph.nodes():
         graph.nodes[n]["population"] = graph.nodes[n]["TOTPOP"]
-        graph.nodes[n]["density"] = 0
+        area = max(float(graph.nodes[n].get("ALAND10", 1)), 1.0)
+        rho = graph.nodes[n]["TOTPOP"] / area
+        graph.nodes[n]["density_raw"] = rho
+        raw_dens.append(rho)
+    mean_rho = float(np.mean(raw_dens)) or 1.0
+    for n in graph.nodes():
+        graph.nodes[n]["density"] = graph.nodes[n]["density_raw"] / mean_rho
+    sp = np.array([graph.edges[e]["shared_perim"] for e in graph.edges()])
+    mean_sp = float(sp.mean())
+    for e in graph.edges():
+        graph.edges[e]["shared_perim"] = graph.edges[e]["shared_perim"] / mean_sp
     total = sum(graph.nodes[n]["TOTPOP"] for n in graph.nodes())
     ideal = total / K
     print(f"  {len(graph.nodes())} precincts, {len(graph.edges())} edges; "
           f"ideal pop = {ideal:,.0f}")
+    if seed is not None:
+        import random as _random
+        _random.seed(seed)
+        np.random.seed(seed)
     init = balanced_tree_part(graph, K, ideal, "TOTPOP", eps)
     label = f"NC precinct, k={K}, ε={eps}"
     return {
@@ -218,7 +238,7 @@ def _setup_5x5_eps02(repo_root, fiber_dir, K=5, eps=0.20):
     }
 
 
-def setup_problem(mode, repo_root, fiber_dir=None):
+def setup_problem(mode, repo_root, fiber_dir=None, **kwargs):
     """Return a dict {graph, K, eps, ideal, init, label, fiber_lookup, fiber_cuts}.
     fiber_lookup and fiber_cuts are None for modes without ground-truth fiber."""
     if mode == "iowa":
@@ -232,5 +252,5 @@ def setup_problem(mode, repo_root, fiber_dir=None):
             fiber_dir = Path(__file__).parent / "fiber_5x5"
         return _setup_5x5_eps02(repo_root, fiber_dir)
     if mode == "nc":
-        return _setup_nc(repo_root)
+        return _setup_nc(repo_root, **kwargs)
     raise ValueError(f"unknown mode {mode!r}")

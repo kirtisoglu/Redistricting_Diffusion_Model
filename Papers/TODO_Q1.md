@@ -33,10 +33,32 @@ Appendix B.
 
 ## Before the journal version (Statistics and Computing)
 
-- [ ] Precinct scale (Section 5.7): restore `archive/diffusion_model/mew`
-      for the North Carolina graph, timing probe, then forest move alone
-      and hybrid at p_local = 0.1 with tau from the move-size rule,
-      2e5 steps, two seeds, perimeter and density targets.
+- [ ] Precinct scale (Section 5.7). Code is ready: `NC_VTD/NC_VTD.json`
+      (2692 precincts, built from the MGGG shapefile by gerrychain) and
+      `diffusion_model/recom/forest_nc.py`. Run sheet for the local agent,
+      from `diffusion_model/`:
+
+      1. Probe (10 min): `python3 recom/forest_nc.py probe`
+         Cloud probe at 30 steps: forest 66 ms/step, local 70 ms/step,
+         so a 2e5-step chain is about 3.7 h per kernel. Forest acceptance
+         at the tree-partition start is 0.57; it is expected to fall at
+         equilibrium (Section 5.5).
+      2. Eight chains in parallel (one kernel each, about 4 h on the
+         11-core machine), each forest chain at the same time as its
+         hybrid partner:
+         for k in perimeter density; do for s in 42 43; do
+           python3 recom/forest_nc.py run forest --seed $s --kernel $k > recom/iowa_hybrid_test_out/forest_nc_forest_${k}_${s}.log 2>&1 &
+           python3 recom/forest_nc.py run hybrid --seed $s --kernel $k > recom/iowa_hybrid_test_out/forest_nc_hybrid_${k}_${s}.log 2>&1 &
+         done; done; wait
+      3. `python3 recom/forest_nc.py verdict > recom/iowa_hybrid_test_out/forest_nc_verdict.txt`
+      4. Push the eight .npz files, the logs and the verdict.
+      Defaults: K = 13, eps = 0.05, p_local = 0.1, m = 2 (tau from the
+      move-size rule, about 0.037 under perimeter and 0.041 under
+      density), target pi. If the probe shows the forest move accepting
+      below 0.01 at equilibrium, also run `--target tree` for the same
+      eight chains; that is the forest move's home ground and the paper
+      reports both. If 2e5 steps leave the forest ESS below 50, extend
+      with `--n 1000000` for the forest chains only.
 - [ ] Gurobi-free local solve for the active-balance case (one extra
       linear solve and a scalar root), so a local step costs what a
       forest step costs in any language.
