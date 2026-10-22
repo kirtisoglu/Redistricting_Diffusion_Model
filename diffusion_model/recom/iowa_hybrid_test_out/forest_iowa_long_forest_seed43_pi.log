@@ -1,0 +1,44 @@
+Loading Iowa from /Users/kirtisoglu/GitHub/Redistricting_Diffusion_Model/IA_counties/IA_counties.json ...
+  [perimeter forest] 100000/2000000   151.0s  wcut 30.79  acc(forest) 0.164  acc(local) nan
+  [perimeter forest] 200000/2000000   308.8s  wcut 28.20  acc(forest) 0.163  acc(local) nan
+  [perimeter forest] 300000/2000000   495.0s  wcut 29.83  acc(forest) 0.158  acc(local) nan
+  [perimeter forest] 400000/2000000   684.5s  wcut 27.04  acc(forest) 0.157  acc(local) nan
+  [perimeter forest] 500000/2000000   877.7s  wcut 28.30  acc(forest) 0.159  acc(local) nan
+  [perimeter forest] 600000/2000000  1067.5s  wcut 27.94  acc(forest) 0.159  acc(local) nan
+  [perimeter forest] 700000/2000000  1249.4s  wcut 26.73  acc(forest) 0.162  acc(local) nan
+  [perimeter forest] 800000/2000000  1405.3s  wcut 22.63  acc(forest) 0.162  acc(local) nan
+  [perimeter forest] 900000/2000000  1546.7s  wcut 26.91  acc(forest) 0.160  acc(local) nan
+  [perimeter forest] 1000000/2000000  1919.8s  wcut 26.56  acc(forest) 0.160  acc(local) nan
+  [perimeter forest] 1100000/2000000  2186.0s  wcut 30.87  acc(forest) 0.161  acc(local) nan
+  [perimeter forest] 1200000/2000000  2326.2s  wcut 27.72  acc(forest) 0.160  acc(local) nan
+  [perimeter forest] 1300000/2000000  2473.0s  wcut 33.39  acc(forest) 0.161  acc(local) nan
+  [perimeter forest] 1400000/2000000  2610.2s  wcut 32.08  acc(forest) 0.164  acc(local) nan
+  [perimeter forest] 1500000/2000000  2742.0s  wcut 30.81  acc(forest) 0.164  acc(local) nan
+  [perimeter forest] 1600000/2000000  2885.0s  wcut 28.34  acc(forest) 0.163  acc(local) nan
+  [perimeter forest] 1700000/2000000  3024.3s  wcut 28.53  acc(forest) 0.163  acc(local) nan
+  [perimeter forest] 1800000/2000000  3161.2s  wcut 24.08  acc(forest) 0.163  acc(local) nan
+  [perimeter forest] 1900000/2000000  3292.5s  wcut 29.17  acc(forest) 0.163  acc(local) nan
+  [perimeter forest] 2000000/2000000  3437.6s  wcut 26.84  acc(forest) 0.162  acc(local) nan
+ perimeter lam=0.343 forest 2000000 steps seed 43 target pi: acc forest 0.1625 acc loc nan quarter means 28.57 28.23 28.67 27.89  ESS 247  wall 3438s  ESS/s 0.0718
+  [density forest] 100000/2000000   136.3s  wcut 19.41  acc(forest) 0.169  acc(local) nan
+  [density forest] 200000/2000000   273.4s  wcut 17.64  acc(forest) 0.171  acc(local) nan
+  [density forest] 300000/2000000   403.0s  wcut 19.15  acc(forest) 0.175  acc(local) nan
+  [density forest] 400000/2000000   542.7s  wcut 15.53  acc(forest) 0.173  acc(local) nan
+  [density forest] 500000/2000000   681.5s  wcut 18.90  acc(forest) 0.174  acc(local) nan
+  [density forest] 600000/2000000   811.8s  wcut 18.10  acc(forest) 0.175  acc(local) nan
+  [density forest] 700000/2000000   953.8s  wcut 16.84  acc(forest) 0.175  acc(local) nan
+  [density forest] 800000/2000000  1081.0s  wcut 18.11  acc(forest) 0.176  acc(local) nan
+  [density forest] 900000/2000000  1221.3s  wcut 19.67  acc(forest) 0.175  acc(local) nan
+  [density forest] 1000000/2000000  1354.0s  wcut 16.73  acc(forest) 0.175  acc(local) nan
+  [density forest] 1100000/2000000  1484.8s  wcut 16.02  acc(forest) 0.177  acc(local) nan
+  [density forest] 1200000/2000000  1618.1s  wcut 16.75  acc(forest) 0.176  acc(local) nan
+  [density forest] 1300000/2000000  1760.8s  wcut 17.46  acc(forest) 0.176  acc(local) nan
+  [density forest] 1400000/2000000  1900.3s  wcut 14.35  acc(forest) 0.176  acc(local) nan
+  [density forest] 1500000/2000000  2038.3s  wcut 22.23  acc(forest) 0.175  acc(local) nan
+  [density forest] 1600000/2000000  2179.7s  wcut 18.10  acc(forest) 0.175  acc(local) nan
+  [density forest] 1700000/2000000  2319.8s  wcut 16.92  acc(forest) 0.176  acc(local) nan
+  [density forest] 1800000/2000000  2462.0s  wcut 16.64  acc(forest) 0.175  acc(local) nan
+  [density forest] 1900000/2000000  2604.7s  wcut 19.30  acc(forest) 0.175  acc(local) nan
+  [density forest] 2000000/2000000  2740.1s  wcut 17.84  acc(forest) 0.175  acc(local) nan
+   density lam=0.718 forest 2000000 steps seed 43 target pi: acc forest 0.1750 acc loc nan quarter means 17.88 17.80 17.70 18.18  ESS 585  wall 2740s  ESS/s 0.2135
+Saved forest_iowa_long_forest_seed43_pi.npz

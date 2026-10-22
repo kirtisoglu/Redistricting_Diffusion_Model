@@ -1,0 +1,44 @@
+Loading Iowa from /Users/kirtisoglu/GitHub/Redistricting_Diffusion_Model/IA_counties/IA_counties.json ...
+  [perimeter hybrid] 25000/500000    30.3s  wcut 13.14  acc(forest) 0.735  acc(local) 0.716
+  [perimeter hybrid] 50000/500000    59.9s  wcut 12.72  acc(forest) 0.734  acc(local) 0.723
+  [perimeter hybrid] 75000/500000    90.2s  wcut 13.05  acc(forest) 0.735  acc(local) 0.716
+  [perimeter hybrid] 100000/500000   120.8s  wcut 12.51  acc(forest) 0.735  acc(local) 0.717
+  [perimeter hybrid] 125000/500000   150.5s  wcut 12.85  acc(forest) 0.735  acc(local) 0.717
+  [perimeter hybrid] 150000/500000   181.2s  wcut 12.64  acc(forest) 0.735  acc(local) 0.716
+  [perimeter hybrid] 175000/500000   211.2s  wcut 11.80  acc(forest) 0.734  acc(local) 0.718
+  [perimeter hybrid] 200000/500000   243.3s  wcut 10.66  acc(forest) 0.733  acc(local) 0.718
+  [perimeter hybrid] 225000/500000   279.1s  wcut 12.51  acc(forest) 0.734  acc(local) 0.719
+  [perimeter hybrid] 250000/500000   310.5s  wcut 12.85  acc(forest) 0.735  acc(local) 0.718
+  [perimeter hybrid] 275000/500000   345.5s  wcut 12.85  acc(forest) 0.735  acc(local) 0.718
+  [perimeter hybrid] 300000/500000   380.7s  wcut 12.65  acc(forest) 0.735  acc(local) 0.718
+  [perimeter hybrid] 325000/500000   415.2s  wcut 11.03  acc(forest) 0.735  acc(local) 0.718
+  [perimeter hybrid] 350000/500000   449.3s  wcut 12.79  acc(forest) 0.734  acc(local) 0.718
+  [perimeter hybrid] 375000/500000   483.8s  wcut 12.40  acc(forest) 0.735  acc(local) 0.719
+  [perimeter hybrid] 400000/500000   520.0s  wcut 13.61  acc(forest) 0.734  acc(local) 0.719
+  [perimeter hybrid] 425000/500000   554.6s  wcut 15.88  acc(forest) 0.735  acc(local) 0.719
+  [perimeter hybrid] 450000/500000   589.0s  wcut 12.51  acc(forest) 0.735  acc(local) 0.719
+  [perimeter hybrid] 475000/500000   623.4s  wcut 13.04  acc(forest) 0.735  acc(local) 0.719
+  [perimeter hybrid] 500000/500000   658.7s  wcut 11.75  acc(forest) 0.735  acc(local) 0.719
+ perimeter lam=0.343 hybrid 500000 steps seed 43 target tree: acc forest 0.7349 acc loc 0.719 quarter means 13.03 13.04 13.02 13.07  ESS 23604  wall 659s  ESS/s 35.8328
+  [density hybrid] 25000/500000    35.6s  wcut 7.31  acc(forest) 0.656  acc(local) 0.837
+  [density hybrid] 50000/500000    73.7s  wcut 5.10  acc(forest) 0.662  acc(local) 0.840
+  [density hybrid] 75000/500000   106.9s  wcut 6.38  acc(forest) 0.662  acc(local) 0.839
+  [density hybrid] 100000/500000   139.5s  wcut 9.28  acc(forest) 0.661  acc(local) 0.841
+  [density hybrid] 125000/500000   173.1s  wcut 8.14  acc(forest) 0.659  acc(local) 0.841
+  [density hybrid] 150000/500000   208.8s  wcut 8.30  acc(forest) 0.658  acc(local) 0.840
+  [density hybrid] 175000/500000   243.1s  wcut 5.60  acc(forest) 0.659  acc(local) 0.841
+  [density hybrid] 200000/500000   277.9s  wcut 7.61  acc(forest) 0.659  acc(local) 0.840
+  [density hybrid] 225000/500000   311.4s  wcut 6.29  acc(forest) 0.659  acc(local) 0.838
+  [density hybrid] 250000/500000   343.8s  wcut 8.94  acc(forest) 0.659  acc(local) 0.838
+  [density hybrid] 275000/500000   376.6s  wcut 9.21  acc(forest) 0.659  acc(local) 0.838
+  [density hybrid] 300000/500000   410.6s  wcut 9.50  acc(forest) 0.660  acc(local) 0.838
+  [density hybrid] 325000/500000   444.2s  wcut 7.93  acc(forest) 0.660  acc(local) 0.836
+  [density hybrid] 350000/500000   477.6s  wcut 6.98  acc(forest) 0.660  acc(local) 0.837
+  [density hybrid] 375000/500000   510.6s  wcut 7.26  acc(forest) 0.660  acc(local) 0.836
+  [density hybrid] 400000/500000   544.1s  wcut 6.39  acc(forest) 0.660  acc(local) 0.836
+  [density hybrid] 425000/500000   577.2s  wcut 7.89  acc(forest) 0.660  acc(local) 0.836
+  [density hybrid] 450000/500000   611.1s  wcut 7.09  acc(forest) 0.660  acc(local) 0.836
+  [density hybrid] 475000/500000   642.5s  wcut 7.37  acc(forest) 0.660  acc(local) 0.836
+  [density hybrid] 500000/500000   672.1s  wcut 8.79  acc(forest) 0.660  acc(local) 0.835
+   density lam=0.718 hybrid 500000 steps seed 43 target tree: acc forest 0.6595 acc loc 0.835 quarter means 7.27 7.29 7.28 7.29  ESS 19647  wall 672s  ESS/s 29.2304
+Saved forest_iowa_long_hybrid_seed43_tree.npz

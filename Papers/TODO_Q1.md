@@ -5,6 +5,8 @@ previous version of this file (the September audit tiers and the October
 status log) is in git history at commit dbd76a3; its open items are
 summarised at the bottom.
 
+
+**Status 2026-10-22: the kill test PASSED under the pre-registered criterion** (pi, p_local = 0.1, ratios 1.65 to 2.29 on both kernels and both seeds). Details in Results, Step 3.
 ## Decision
 
 One paper, `paper.tex`. The informed-MEW idea is not written up separately;
@@ -418,37 +420,137 @@ baseline, but it does not by itself demolish the paper's Iowa ratios.
 
 ### Step 3: Iowa long
 
-Not yet run. In addition to the eight commands of Step 3 above, run the
-hybrid at p = 0.3 under pi on both seeds, since the short runs favour it
-(the long mode's sixth argument is p_local; the file name gains `_p0.3`):
+Run 2026-10-21 to 22. The eight runs of the run sheet started together on
+commit e4743a6. The two p = 0.3 hybrid runs below were added by commit
+af1421f, whose only change to `forest_iowa.py` is the optional p_local
+argument, and started about six minutes later. All ten ran at `nice -n 19`
+with one thread each on an 11-core machine with 5 performance cores.
+
+The cloud session added, after the short runs, the hybrid at p = 0.3 under
+pi on both seeds:
 
     python3 recom/forest_iowa.py long hybrid 2000000 42 pi 0.3 | tee recom/iowa_hybrid_test_out/forest_iowa_long_hybrid_p0.3_seed42_pi.log
     python3 recom/forest_iowa.py long hybrid 2000000 43 pi 0.3 | tee recom/iowa_hybrid_test_out/forest_iowa_long_hybrid_p0.3_seed43_pi.log
 
-The criterion is unchanged: the hybrid passes if either p clears 1.5 on
-both kernels and both seeds with matching quarter means, and the paper
-reports the p it used.
+It also wrote that "the criterion is unchanged: the hybrid passes if either
+p clears 1.5". That is a change. The criterion fixed in advance named
+p = 0.1 only, and a second chance added after seeing the short runs makes
+passing easier. Both verdicts are reported below, the pre-registered one
+first.
 
-(paste the summary lines; then fill the table)
+Summary lines, verbatim from the logs:
+
+```
+ perimeter lam=0.343 forest 2000000 steps seed 42 target pi: acc forest 0.1575 acc loc nan quarter means 28.18 27.84 28.03 28.39  ESS 421  wall 3438s  ESS/s 0.1226
+   density lam=0.718 forest 2000000 steps seed 42 target pi: acc forest 0.1753 acc loc nan quarter means 17.95 18.03 18.31 17.91  ESS 486  wall 2749s  ESS/s 0.1769
+ perimeter lam=0.343 forest 2000000 steps seed 43 target pi: acc forest 0.1625 acc loc nan quarter means 28.57 28.23 28.67 27.89  ESS 247  wall 3438s  ESS/s 0.0718
+   density lam=0.718 forest 2000000 steps seed 43 target pi: acc forest 0.1750 acc loc nan quarter means 17.88 17.80 17.70 18.18  ESS 585  wall 2740s  ESS/s 0.2135
+ perimeter lam=0.343 hybrid p_local=0.3 2000000 steps seed 42 target pi: acc forest 0.1620 acc loc 0.531 quarter means 28.19 28.09 28.08 28.06  ESS 1116  wall 3439s  ESS/s 0.3244
+   density lam=0.718 hybrid p_local=0.3 2000000 steps seed 42 target pi: acc forest 0.1744 acc loc 0.675 quarter means 18.08 18.23 18.12 18.10  ESS 1395  wall 2498s  ESS/s 0.5587
+ perimeter lam=0.343 hybrid p_local=0.3 2000000 steps seed 43 target pi: acc forest 0.1564 acc loc 0.527 quarter means 28.18 28.27 28.21 28.13  ESS 1101  wall 3457s  ESS/s 0.3183
+   density lam=0.718 hybrid p_local=0.3 2000000 steps seed 43 target pi: acc forest 0.1732 acc loc 0.672 quarter means 18.03 18.13 18.02 18.19  ESS 1244  wall 2504s  ESS/s 0.4967
+ perimeter lam=0.343 hybrid 2000000 steps seed 42 target pi: acc forest 0.1623 acc loc 0.531 quarter means 28.16 27.99 28.25 28.14  ESS 696  wall 3437s  ESS/s 0.2024
+   density lam=0.718 hybrid 2000000 steps seed 42 target pi: acc forest 0.1778 acc loc 0.677 quarter means 17.93 17.99 18.23 17.93  ESS 925  wall 2685s  ESS/s 0.3446
+ perimeter lam=0.343 hybrid 2000000 steps seed 43 target pi: acc forest 0.1618 acc loc 0.529 quarter means 28.25 28.56 28.50 28.21  ESS 572  wall 3472s  ESS/s 0.1649
+   density lam=0.718 hybrid 2000000 steps seed 43 target pi: acc forest 0.1766 acc loc 0.673 quarter means 18.01 18.04 18.00 18.10  ESS 1167  wall 2692s  ESS/s 0.4336
+ perimeter lam=0.343 forest 500000 steps seed 42 target tree: acc forest 0.7340 acc loc nan quarter means 13.05 13.05 13.05 13.02  ESS 27019  wall 615s  ESS/s 43.9195
+   density lam=0.718 forest 500000 steps seed 42 target tree: acc forest 0.6601 acc loc nan quarter means 7.30 7.30 7.29 7.32  ESS 21642  wall 671s  ESS/s 32.2667
+ perimeter lam=0.343 forest 500000 steps seed 43 target tree: acc forest 0.7325 acc loc nan quarter means 13.01 13.02 13.05 13.07  ESS 27113  wall 614s  ESS/s 44.1422
+   density lam=0.718 forest 500000 steps seed 43 target tree: acc forest 0.6596 acc loc nan quarter means 7.30 7.30 7.27 7.30  ESS 22750  wall 672s  ESS/s 33.8653
+ perimeter lam=0.343 hybrid 500000 steps seed 42 target tree: acc forest 0.7320 acc loc 0.716 quarter means 13.03 13.04 13.02 13.05  ESS 24558  wall 657s  ESS/s 37.3998
+   density lam=0.718 hybrid 500000 steps seed 42 target tree: acc forest 0.6598 acc loc 0.835 quarter means 7.31 7.28 7.27 7.29  ESS 19615  wall 673s  ESS/s 29.1425
+ perimeter lam=0.343 hybrid 500000 steps seed 43 target tree: acc forest 0.7349 acc loc 0.719 quarter means 13.03 13.04 13.02 13.07  ESS 23604  wall 659s  ESS/s 35.8328
+   density lam=0.718 hybrid 500000 steps seed 43 target tree: acc forest 0.6595 acc loc 0.835 quarter means 7.27 7.29 7.28 7.29  ESS 19647  wall 672s  ESS/s 29.2304
+```
+
+Verdict computation from the stored artifacts (`recom/forest_verdict.py`,
+output in `forest_verdict.txt`). Beyond the run sheet it adds two checks.
+"z" tests whether the two chains sit at the same level: the difference of
+post-burn means in standard errors, each from that chain's own ESS, with
+|z| < 2 as "same level". "corr ratio" guards against the shared cores: ESS
+per step ratio times the Step 2 short run's per-step cost ratio, where both
+chains ran in one process.
+
+```
+   family    kernel seed |  ESS f  ESS h  ESS/s f  ESS/s h  ratio |  mean f  mean h      z | cost h/f long  short corr ratio
+       pi perimeter   42 |    421    696   0.1226   0.2024   1.65 |   28.11   28.14  +0.20 |          1.00   1.01       1.63
+                          quarters forest 28.18 27.84 28.03 28.39   hybrid 28.16 27.99 28.25 28.14
+       pi perimeter   43 |    247    572   0.0718   0.1649   2.29 |   28.34   28.38  +0.23 |          1.01   1.01       2.29
+                          quarters forest 28.57 28.23 28.67 27.89   hybrid 28.25 28.56 28.50 28.21
+       pi   density   42 |    486    925   0.1769   0.3446   1.95 |   18.05   18.02  -0.25 |          0.98   0.96       1.99
+                          quarters forest 17.95 18.03 18.31 17.91   hybrid 17.93 17.99 18.23 17.93
+       pi   density   43 |    585   1167   0.2135   0.4336   2.03 |   17.89   18.04  +1.46 |          0.98   0.96       2.08
+                          quarters forest 17.88 17.80 17.70 18.18   hybrid 18.01 18.04 18.00 18.10
+     tree perimeter   42 |  27019  24558  43.9195  37.3998   0.85 |   13.04   13.03  -0.64 |          1.07   1.06       0.86
+                          quarters forest 13.05 13.05 13.05 13.02   hybrid 13.03 13.04 13.02 13.05
+     tree perimeter   43 |  27113  23604  44.1422  35.8328   0.81 |   13.04   13.04  +0.32 |          1.07   1.06       0.82
+                          quarters forest 13.01 13.02 13.05 13.07   hybrid 13.03 13.04 13.02 13.07
+     tree   density   42 |  21642  19615  32.2667  29.1425   0.90 |    7.30    7.29  -1.12 |          1.00   1.05       0.87
+                          quarters forest 7.30 7.30 7.29 7.32   hybrid 7.31 7.28 7.27 7.29
+     tree   density   43 |  22750  19647  33.8653  29.2304   0.86 |    7.29    7.28  -0.98 |          1.00   1.05       0.82
+                          quarters forest 7.30 7.30 7.27 7.30   hybrid 7.27 7.29 7.28 7.29
+  pi p0.3 perimeter   42 |    421   1116   0.1226   0.3244   2.65 |   28.11   28.11  -0.02 |          1.00   1.11       2.39
+                          quarters forest 28.18 27.84 28.03 28.39   hybrid 28.19 28.09 28.08 28.06
+  pi p0.3 perimeter   43 |    247   1101   0.0718   0.3183   4.43 |   28.34   28.20  -0.87 |          1.01   1.11       4.02
+                          quarters forest 28.57 28.23 28.67 27.89   hybrid 28.18 28.27 28.21 28.13
+  pi p0.3   density   42 |    486   1395   0.1769   0.5587   3.16 |   18.05   18.13  +0.81 |          0.91   0.89       3.21
+                          quarters forest 17.95 18.03 18.31 17.91   hybrid 18.08 18.23 18.12 18.10
+  pi p0.3   density   43 |    585   1244   0.2135   0.4967   2.33 |   17.89   18.09  +2.04 |          0.91   0.89       2.38
+                          quarters forest 17.88 17.80 17.70 18.18   hybrid 18.03 18.13 18.02 18.19
+
+Pre-registered criterion (pi, p_local = 0.1): 4 of 4 cells meet ratio >= 1.5 with |z| < 2 -> PASS; cost-corrected: 4 of 4.
+
+p_local = 0.3 (added after the short runs): 3 of 4 cells meet ratio >= 1.5 with |z| < 2 -> IN-BETWEEN; cost-corrected: 3 of 4.
+Amended criterion (either p clears it): PASS. Report the pre-registered verdict first; the amendment was made after seeing short runs.
+```
 
 | target family | kernel | seed | ESS/s forest | ESS/s f-hybrid | ratio | quarter means agree? |
 |---|---|---|---|---|---|---|
-| pi | perimeter | 42 | | | | |
-| pi | density | 42 | | | | |
-| pi | perimeter | 43 | | | | |
-| pi | density | 43 | | | | |
-| tree | perimeter | 42 | | | | |
-| tree | density | 42 | | | | |
-| tree | perimeter | 43 | | | | |
-| tree | density | 43 | | | | |
-| pi, p=0.3 | perimeter | 42 | | | | |
-| pi, p=0.3 | density | 42 | | | | |
-| pi, p=0.3 | perimeter | 43 | | | | |
-| pi, p=0.3 | density | 43 | | | | |
+| pi | perimeter | 42 | 0.1226 | 0.2024 | 1.65 | yes, z = +0.20 |
+| pi | density | 42 | 0.1769 | 0.3446 | 1.95 | yes, z = -0.25 |
+| pi | perimeter | 43 | 0.0718 | 0.1649 | 2.29 | yes, z = +0.23 |
+| pi | density | 43 | 0.2135 | 0.4336 | 2.03 | yes, z = +1.46 |
+| tree | perimeter | 42 | 43.92 | 37.4 | 0.85 | yes, z = -0.64 |
+| tree | density | 42 | 32.27 | 29.14 | 0.90 | yes, z = -1.12 |
+| tree | perimeter | 43 | 44.14 | 35.83 | 0.81 | yes, z = +0.32 |
+| tree | density | 43 | 33.87 | 29.23 | 0.86 | yes, z = -0.98 |
+| pi, p=0.3 | perimeter | 42 | 0.1226 | 0.3244 | 2.65 | yes, z = -0.02 |
+| pi, p=0.3 | density | 42 | 0.1769 | 0.5587 | 3.16 | yes, z = +0.81 |
+| pi, p=0.3 | perimeter | 43 | 0.0718 | 0.3183 | 4.43 | yes, z = -0.87 |
+| pi, p=0.3 | density | 43 | 0.2135 | 0.4967 | 2.33 | no, just (forest quarters wander 17.70 to 18.18), z = +2.04 |
 
-Verdict under pi:
+Verdict under pi: **PASS under the pre-registered criterion** (p_local =
+0.1). The ratios are 1.65, 2.29, 1.95 and 2.03, all four at or above 1.5,
+and every pair sits on the same level (largest |z| is 1.46). The
+cost-corrected ratios are 1.63, 2.29, 1.99 and 2.08, also all four, and the
+long runs' per-step cost ratios (0.98 to 1.01) match the short runs' (0.96
+to 1.01), so sharing cores did not move the result. At p = 0.3 three of
+four cells pass. The fourth, density seed 43, has ratio 2.33 but z = 2.04,
+just over the bar, because the forest chain's quarter means wander from
+17.70 to 18.18. That is the forest move's slow mixing, not a different
+equilibrium. Under the amended either-p criterion the verdict is also PASS,
+carried by p = 0.1.
 
-Reading of the tree-weighted rows:
+The margin is real but not wide. The smallest pre-registered cell is 1.65
+(perimeter, seed 42), and the seeds differ (1.65 against 2.29 under
+perimeter), so the paper should quote the range across seeds rather than a
+single number. The forest move's ESS is 247 to 585 over 1.8e6 retained
+steps, an autocorrelation time of 3,000 to 7,000 steps.
+
+Reading of the tree-weighted rows: under the tree-weighted target, where
+the forest move's tree-count ratio cancels, the hybrid is a passenger on
+every cell. The ratios are 0.81 to 0.90 (cost-corrected 0.82 to 0.87),
+both chains sit on the same level (largest |z| is 1.12), and the ESS is
+above 19,000. Together with the pi rows this answers where the local move
+helps. It helps when the global move pays a tree-count ratio against the
+target, as under the paper's pi, and not when the target absorbs that
+ratio. This is fact 2 of the run sheet, now measured at equilibrium on two
+seeds.
+
+Step 4 (optional) was not run. Its condition is that Step 3 under pi is
+close to the threshold, which the pre-registered result is not, and the
+p = 0.3 question it was meant to inform was answered by the two extra long
+runs above.
 
 ## Items still open from the previous version of this file
 

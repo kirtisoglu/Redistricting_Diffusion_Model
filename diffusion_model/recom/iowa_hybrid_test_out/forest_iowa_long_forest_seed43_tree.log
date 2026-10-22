@@ -1,0 +1,44 @@
+Loading Iowa from /Users/kirtisoglu/GitHub/Redistricting_Diffusion_Model/IA_counties/IA_counties.json ...
+  [perimeter forest] 25000/500000    28.9s  wcut 11.90  acc(forest) 0.732  acc(local) nan
+  [perimeter forest] 50000/500000    56.7s  wcut 12.11  acc(forest) 0.735  acc(local) nan
+  [perimeter forest] 75000/500000    85.0s  wcut 14.65  acc(forest) 0.734  acc(local) nan
+  [perimeter forest] 100000/500000   113.8s  wcut 12.75  acc(forest) 0.733  acc(local) nan
+  [perimeter forest] 125000/500000   141.8s  wcut 12.75  acc(forest) 0.733  acc(local) nan
+  [perimeter forest] 150000/500000   170.4s  wcut 14.04  acc(forest) 0.733  acc(local) nan
+  [perimeter forest] 175000/500000   199.1s  wcut 13.58  acc(forest) 0.733  acc(local) nan
+  [perimeter forest] 200000/500000   227.9s  wcut 11.78  acc(forest) 0.734  acc(local) nan
+  [perimeter forest] 225000/500000   260.4s  wcut 12.23  acc(forest) 0.733  acc(local) nan
+  [perimeter forest] 250000/500000   291.5s  wcut 13.78  acc(forest) 0.733  acc(local) nan
+  [perimeter forest] 275000/500000   320.4s  wcut 12.51  acc(forest) 0.733  acc(local) nan
+  [perimeter forest] 300000/500000   354.5s  wcut 11.89  acc(forest) 0.733  acc(local) nan
+  [perimeter forest] 325000/500000   387.3s  wcut 13.11  acc(forest) 0.733  acc(local) nan
+  [perimeter forest] 350000/500000   419.1s  wcut 13.46  acc(forest) 0.733  acc(local) nan
+  [perimeter forest] 375000/500000   451.5s  wcut 12.58  acc(forest) 0.733  acc(local) nan
+  [perimeter forest] 400000/500000   484.0s  wcut 13.58  acc(forest) 0.733  acc(local) nan
+  [perimeter forest] 425000/500000   518.2s  wcut 12.82  acc(forest) 0.733  acc(local) nan
+  [perimeter forest] 450000/500000   550.2s  wcut 14.42  acc(forest) 0.733  acc(local) nan
+  [perimeter forest] 475000/500000   581.9s  wcut 14.84  acc(forest) 0.733  acc(local) nan
+  [perimeter forest] 500000/500000   614.2s  wcut 10.93  acc(forest) 0.733  acc(local) nan
+ perimeter lam=0.343 forest 500000 steps seed 43 target tree: acc forest 0.7325 acc loc nan quarter means 13.01 13.02 13.05 13.07  ESS 27113  wall 614s  ESS/s 44.1422
+  [density forest] 25000/500000    33.1s  wcut 7.15  acc(forest) 0.666  acc(local) nan
+  [density forest] 50000/500000    68.1s  wcut 8.76  acc(forest) 0.665  acc(local) nan
+  [density forest] 75000/500000   105.5s  wcut 6.15  acc(forest) 0.664  acc(local) nan
+  [density forest] 100000/500000   138.3s  wcut 5.58  acc(forest) 0.664  acc(local) nan
+  [density forest] 125000/500000   170.0s  wcut 6.32  acc(forest) 0.662  acc(local) nan
+  [density forest] 150000/500000   203.2s  wcut 7.25  acc(forest) 0.661  acc(local) nan
+  [density forest] 175000/500000   238.5s  wcut 7.33  acc(forest) 0.660  acc(local) nan
+  [density forest] 200000/500000   272.2s  wcut 6.02  acc(forest) 0.660  acc(local) nan
+  [density forest] 225000/500000   306.2s  wcut 9.23  acc(forest) 0.660  acc(local) nan
+  [density forest] 250000/500000   340.2s  wcut 5.43  acc(forest) 0.660  acc(local) nan
+  [density forest] 275000/500000   372.3s  wcut 5.60  acc(forest) 0.660  acc(local) nan
+  [density forest] 300000/500000   404.8s  wcut 6.11  acc(forest) 0.660  acc(local) nan
+  [density forest] 325000/500000   438.1s  wcut 6.32  acc(forest) 0.660  acc(local) nan
+  [density forest] 350000/500000   471.4s  wcut 6.98  acc(forest) 0.659  acc(local) nan
+  [density forest] 375000/500000   504.1s  wcut 6.35  acc(forest) 0.660  acc(local) nan
+  [density forest] 400000/500000   538.3s  wcut 7.25  acc(forest) 0.660  acc(local) nan
+  [density forest] 425000/500000   571.2s  wcut 6.97  acc(forest) 0.660  acc(local) nan
+  [density forest] 450000/500000   605.1s  wcut 5.66  acc(forest) 0.660  acc(local) nan
+  [density forest] 475000/500000   638.2s  wcut 8.02  acc(forest) 0.660  acc(local) nan
+  [density forest] 500000/500000   671.8s  wcut 9.98  acc(forest) 0.660  acc(local) nan
+   density lam=0.718 forest 500000 steps seed 43 target tree: acc forest 0.6596 acc loc nan quarter means 7.30 7.30 7.27 7.30  ESS 22750  wall 672s  ESS/s 33.8653
+Saved forest_iowa_long_forest_seed43_tree.npz
