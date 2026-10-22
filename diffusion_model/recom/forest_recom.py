@@ -261,7 +261,8 @@ def forest_step(tgt, asn, trees, ideal, eps, cache, max_tree_draws=MAX_TREE_DRAW
     nodes = Vi + Vj
     nodeset = set(nodes)
     adj = {v: [u for u in graph.neighbors(v) if u in nodeset] for v in nodes}
-    rec = dict(kind="forest", feasible=False, accepted=False, log_alpha=np.nan, draws=0)
+    rec = dict(kind="forest", feasible=False, accepted=False, log_alpha=np.nan, draws=0,
+               log_tau_ratio=np.nan)
 
     lo, hi = (1 - eps) * ideal, (1 + eps) * ideal
     bal = []
@@ -291,6 +292,7 @@ def forest_step(tgt, asn, trees, ideal, eps, cache, max_tree_draws=MAX_TREE_DRAW
     lt_j = cache.get(d2, Vj)
     lt_A = log_tau(graph, list(A))
     lt_B = log_tau(graph, list(B))
+    rec["log_tau_ratio"] = lt_i + lt_j - lt_A - lt_B
     la = forest_log_alpha(tgt, asn, new, d1, d2, Vi, Vj, A, B,
                           trees[d1], trees[d2], T_A, T_B,
                           nodes, lo, hi, lt_i, lt_j, lt_A, lt_B)
@@ -344,6 +346,7 @@ def run_forest_hybrid(tgt, init_asn, ideal, eps, n_steps, p_local, alpha, beta,
     flips = np.zeros(n_steps, dtype=np.int32)
     fast = np.zeros(n_steps, dtype=bool)
     draws = np.zeros(n_steps, dtype=np.int16)
+    ltr = np.full(n_steps, np.nan)
     ids = np.full(n_steps, -1, dtype=np.int64)
     t0 = time.perf_counter()
     for t in range(n_steps):
@@ -356,6 +359,7 @@ def run_forest_hybrid(tgt, init_asn, ideal, eps, n_steps, p_local, alpha, beta,
             asn, trees, r = forest_step(tgt, asn, trees, ideal, eps, cache, max_tree_draws)
             kind[t] = 0
             draws[t] = r["draws"]
+            ltr[t] = r["log_tau_ratio"]
         feas[t] = r["feasible"]
         acc[t] = r["accepted"]
         wc[t] = tgt.wcut(asn)
@@ -371,7 +375,7 @@ def run_forest_hybrid(tgt, init_asn, ideal, eps, n_steps, p_local, alpha, beta,
                   f"acc(local) {acc[:t+1][k1].mean() if k1.any() else float('nan'):.3f}",
                   flush=True)
     return dict(wcut=wc, ncut=nc, kind=kind, feasible=feas, accepted=acc,
-                flips=flips, fast=fast, draws=draws, ids=ids,
+                flips=flips, fast=fast, draws=draws, log_tau_ratio=ltr, ids=ids,
                 wall=time.perf_counter() - t0, final=asn, final_trees=trees)
 
 
